@@ -5,9 +5,7 @@ source ~soft_bio_267/initializes/init_netanalyzer
 source ~soft_bio_267/initializes/init_python
 module=$1
 current_dir=`pwd`
-config_daemon=$current_dir/config_daemon
 aux_sh=$current_dir/aux_sh
-source $config_daemon
 export db_path=$current_dir/databases
 export download_path=$db_path/download
 
