@@ -1,0 +1,41 @@
+extract_subgraph){
+	source ~soft_bio_267/initializes/init_python
+	grep -w 'PREVALENT_DEG' $input_file | cut -f 1 > DEG_tmp_list
+	cat DEG_tmp_list | tr '\n' ',' > DEG_list
+	rm DEG_tmp_list
+	sed -i '1s/^/seed\t/' DEG_list
+	?
+	extract_subgraph.py -i $db_path/net.npy -n $db_path/net.lst -s DEG_list -o subgraph.txt
+	retVal=$?
+    if [ $retVal -ne 0 ]; then
+        echo ERROR: Last command exited with code $retVal
+        exit $retVal
+    fi
+}
+
+net_analyzer){
+	source ~soft_bio_267/initializes/init_python
+	?
+	netanalyzer -i extract_subgraph)/subgraph.txt -f pair -b louvain
+	aggregate_column_data -i louvain_discovered_clusters.txt -x 1 -a 2 -s ',' > clusters_aggregated.txt
+	retVal=$?
+    if [ $retVal -ne 0 ]; then
+        echo ERROR: Last command exited with code $retVal
+        exit $retVal
+    fi
+}
+
+functional_analysis){
+	resources: -c 16 -t 0-00:59:59 -m '60gb'
+	source ~soft_bio_267/initializes/init_degenes_hunter
+	?
+	clusters_to_enrichment.R -i net_analyzer)/clusters_aggregated.txt -w [cpu] -o functional_results -f MF,BP,CC,KEGG,Reactome -k ENSEMBL -O "Human"
+	retVal=$?
+    if [ $retVal -ne 0 ]; then
+        echo ERROR: Last command exited with code $retVal
+        exit $retVal
+    fi
+}
+
+
+#seed \t gen1,gen2,gen3,gen4 -- formato extract_subgraph
