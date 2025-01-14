@@ -38,17 +38,17 @@ fi
 
 if [ "$module" == "1" ]; then
 	file_paths=`cat $tracker`
-	for file_path in "$file_paths"
+	for file_path in ${file_paths[@]}
 	do
-		input_path=`echo "$file_path" | cut -f 1`
-		name=`echo "$file_path" | cut -f 2`
+		input_path=`echo "$file_path" | cut -f 1 -d ","`
+		name=`echo "$file_path" | cut -f 2 -d ","`
+		echo $input_path
+		echo $name
         variables=`echo -e "
         	\\$input_file=$input_path,
         	\\$db_path=$db_path
         " | tr -d '[:space:]' `
-
-
-
+        
         if [ "$mode" == "exec" ] ; then
 			echo Launching main workflow
 			AutoFlow -w $current_dir/templates/degs2net.af -m '10gb' -c 1 -n 'cal' -V $variables $aux_opt -o $current_dir/exec_$name -e -L
@@ -60,13 +60,5 @@ if [ "$module" == "1" ]; then
 			echo Launching pending and failed jobs
 			flow_logger -w -e $current_dir/exec_$name -l -p -b
 		fi
-
 	done
-	
-	# # we get the following file: louvain_discovered_clusters.txt. We will then use aggregate_column_data from cmdtabs to get each ID cluster 
-	# # followed by all of its genes separated by comas. 
-	# aggregate_column_data -i louvain_discovered_clusters.txt -x 1 -a 2 -s ',' > $db_path'/clusters_aggregated.txt'
-	# # Once clusters are aggregated, we will use clusters_to_enrichment.R to do a functional analysis:
-	# source ~soft_bio_267/initializes/init_degenes_hunter # mejor aquí o arriba con los demás?
-	# clusters_to_enrichment.R -i $db_path'/clusters_aggregated.txt' -w 16 -o functional_results -f MF,BP,CC,KEGG,Reactome -k ENSEMBL -O "Human"
 fi
