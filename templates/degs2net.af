@@ -1,4 +1,4 @@
-%extract_subgraph){
+extract_subgraph){
 	source ~soft_bio_267/initializes/init_python
 	grep -w 'PREVALENT_DEG' $input_file | cut -f 1 > DEG_tmp_list
 	cat DEG_tmp_list | tr '\n' ',' > DEG_list
@@ -13,7 +13,7 @@
     fi
 }
 
-%net_analyzer){
+net_analyzer){
 	source ~soft_bio_267/initializes/init_python
 	?
 	netanalyzer -i extract_subgraph)/subgraph.txt -f pair -b louvain
