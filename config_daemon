@@ -1,2 +1,2 @@
 tracker=$current_dir/deg_paths_list.lst
-pvalue_cutoff=0.01  #default 0.1
+pvalue_cutoff=0.05  #default 0.1
