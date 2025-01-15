@@ -47,7 +47,8 @@ if [ "$module" == "1" ]; then
 		echo $name
         variables=`echo -e "
         	\\$input_file=$input_path,
-        	\\$db_path=$db_path
+        	\\$db_path=$db_path,
+        	\\$pvalue_cutoff=$pvalue_cutoff
         " | tr -d '[:space:]' `
         
         if [ "$mode" == "exec" ] ; then
