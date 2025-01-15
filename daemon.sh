@@ -37,6 +37,7 @@ if [ "$module" == "0" ] ; then
 fi
 
 if [ "$module" == "1" ]; then
+	mkdir -p results
 	file_paths=`cat $tracker`
 	for file_path in ${file_paths[@]}
 	do
@@ -51,14 +52,14 @@ if [ "$module" == "1" ]; then
         
         if [ "$mode" == "exec" ] ; then
 			echo Launching main workflow
-			AutoFlow -w $current_dir/templates/degs2net.af -m '10gb' -c 1 -n 'cal' -V $variables $aux_opt -o $current_dir/exec_$name -e -L
+			AutoFlow -w $current_dir/templates/degs2net.af -m '10gb' -c 1 -n 'cal' -V $variables $aux_opt -o $current_dir/results/exec_$name -e -L
 		elif [ "$mode" == "check" ] ; then
-			flow_logger -w -e $current_dir/exec_$name -r all
+			flow_logger -w -e $current_dir/results/exec_$name -r all
 		elif [ "$mode" == "rescue" ] ; then
 			echo Regenerating code
-			AutoFlow -w $template -V $variables $aux_opt -o $current_dir/exec_$name -v
+			AutoFlow -w $template -V $variables $aux_opt -o $current_dir/results/exec_$name -v
 			echo Launching pending and failed jobs
-			flow_logger -w -e $current_dir/exec_$name -l -p -b
+			flow_logger -w -e $current_dir/results/exec_$name -l -p -b
 		fi
 	done
 fi
