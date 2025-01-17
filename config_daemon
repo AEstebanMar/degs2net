@@ -1,2 +1,3 @@
 tracker=$current_dir/deg_paths_list.lst
 pvalue_cutoff=0.05  #default 0.1
+exec_path="/mnt2/fscratch/users/bio_267_uma/lhurtado/NGS_projects/neuromusculares"
