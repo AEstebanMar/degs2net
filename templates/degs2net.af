@@ -1,11 +1,10 @@
-extract_subgraph){
+%extract_subgraph){
+	resources: -c 1 -t 0-00:59:59 -m '10gb'
 	source ~soft_bio_267/initializes/init_python
-	grep -w 'PREVALENT_DEG' $input_file | cut -f 1 > DEG_tmp_list
-	cat DEG_tmp_list | tr '\n' ',' > DEG_list
-	rm DEG_tmp_list
-	sed -i '1s/^/seed\t/' DEG_list
+	grep -w 'PREVALENT_DEG' $input_file | cut -f 1 > DEG_list
+	sed -i -e 's/^/seed\t/' DEG_list 
 	?
-	extract_subgraph.py -i $db_path/net.npy -n $db_path/net.lst -s DEG_list -o subgraph.txt
+	netanalyzer -i $db_path/nodes_score.txt -G DEG_list --extract_subgraphs 
 	retVal=$?
     if [ $retVal -ne 0 ]; then
         echo ERROR: Last command exited with code $retVal
@@ -13,10 +12,12 @@ extract_subgraph){
     fi
 }
 
-net_analyzer){
+subgraph_clustering){
+	resources: -c 1 -t 0-00:59:59 -m '10gb'
 	source ~soft_bio_267/initializes/init_python
 	?
-	netanalyzer -i extract_subgraph)/subgraph.txt -f pair -b louvain
+	netanalyzer -i extract_subgraph)/seed_subgraph -f pair -b louvain #modificar archivo de entrada de extract_subgraph
+	#netanalyzer -i extract_subgraph)/subgraph.txt -g gene_network --graph_options 'method=graphviz' -G louvain_discovered_clusters.txt
 	aggregate_column_data -i louvain_discovered_clusters.txt -x 1 -a 2 -s ',' > clusters_aggregated.txt
 	retVal=$?
     if [ $retVal -ne 0 ]; then
@@ -25,11 +26,23 @@ net_analyzer){
     fi
 }
 
-functional_analysis){
+get_embedding){
+	?
+	netanalyzer -i extract_subgraph)/seed_subgraph -k "rf" -K ./kernel --both_repre_formats -z -l 'genes' -u 'genes'
+}
+
+cluster_prioritization){
+	?
+	ranker -k get_embedding)/kernel.npy -n get_embedding)/kernel_rowIds --seed_nodes subgraph_clustering)/clusters_aggregated.txt
+}
+
+
+
+%functional_analysis){
 	resources: -c 16 -t 0-00:59:59 -m '60gb'
 	source ~soft_bio_267/initializes/init_degenes_hunter
 	?
-	clusters_to_enrichment.R -i net_analyzer)/clusters_aggregated.txt -w [cpu] -o functional_results -f MF,BP,CC,KEGG,Reactome -p $pvalue_cutoff -k ENSEMBL -O "Human"
+	clusters_to_enrichment.R -i subgraph_clustering)/clusters_aggregated.txt -w [cpu] -o functional_results -f MF,BP,CC,KEGG,Reactome -p $pvalue_cutoff -k ENSEMBL -O "Human"
 	retVal=$?
     if [ $retVal -ne 0 ]; then
         echo ERROR: Last command exited with code $retVal
@@ -39,3 +52,5 @@ functional_analysis){
 
 
 #seed \t gen1,gen2,gen3,gen4 -- formato extract_subgraph
+# netanalyzer -i grafo_en_formato_parejas -l $LAYERS -g gene_network --graph_options 'method=graphviz' -G gene_groups
+# netanalyzer -i extract_subgraph)/subgraph.txt -g gene_network --graph_options 'method=graphviz' -G louvain_discovered_clusters.txt
