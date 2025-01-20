@@ -58,9 +58,11 @@ if [ "$module" == "2" ]; then
 		echo $input_path
 		echo $name
         variables=`echo -e "
+        	\\$kernel_path=$exec_path/results/kernel/netanalyzer_0001,
         	\\$input_file=$input_path,
         	\\$db_path=$db_path,
-        	\\$pvalue_cutoff=$pvalue_cutoff
+        	\\$pvalue_cutoff=$pvalue_cutoff,
+        	\\$target_genes=$target_genes
         " | tr -d '[:space:]' `
         
         if [ "$mode" == "exec" ] ; then
