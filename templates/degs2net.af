@@ -1,4 +1,4 @@
-%extract_subgraph){
+extract_subgraph){
 	resources: -c 1 -t 0-00:59:59 -m '10gb'
 	source ~soft_bio_267/initializes/init_python
 	grep -w 'PREVALENT_DEG' $input_file | cut -f 1 > DEG_list
@@ -12,7 +12,7 @@
     fi
 }
 
-%subgraph_clustering){
+subgraph_clustering){
 	resources: -c 1 -t 0-00:59:59 -m '10gb'
 	source ~soft_bio_267/initializes/init_python
 	?
@@ -35,7 +35,7 @@ cluster_prioritization){
 
 
 
-%functional_analysis){
+functional_analysis){
 	resources: -c 16 -t 0-00:59:59 -m '60gb'
 	source ~soft_bio_267/initializes/init_degenes_hunter
 	?
