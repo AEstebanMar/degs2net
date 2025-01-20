@@ -12,7 +12,7 @@
     fi
 }
 
-subgraph_clustering){
+%subgraph_clustering){
 	resources: -c 1 -t 0-00:59:59 -m '10gb'
 	source ~soft_bio_267/initializes/init_python
 	?
@@ -26,14 +26,11 @@ subgraph_clustering){
     fi
 }
 
-get_embedding){
-	?
-	netanalyzer -i extract_subgraph)/seed_subgraph -k "rf" -K ./kernel --both_repre_formats -z -l 'genes' -u 'genes'
-}
-
 cluster_prioritization){
+	source ~soft_bio_267/initializes/init_python
+	awk '{print $1}' subgraph_clustering)/clusters_aggregated.txt | sed 's/$/\t'$target_genes'/' > ./disease_genes.txt
 	?
-	ranker -k get_embedding)/kernel.npy -n get_embedding)/kernel_rowIds --seed_nodes subgraph_clustering)/clusters_aggregated.txt
+	ranker -k $kernel_path/kernel.npy -n $kernel_path/kernel_rowIds --seed_nodes subgraph_clustering)/clusters_aggregated.txt -f disease_genes.txt 
 }
 
 
