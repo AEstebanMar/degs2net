@@ -1,9 +1,10 @@
 #! /usr/bin/env bash
 
 
-module=$1
-mode=$2
-aux_opt=$3
+config_daemon=$1
+module=$2
+mode=$3
+aux_opt=$4
 current_dir=`pwd`
 aux_sh=$current_dir/aux_sh
 config_daemon=$current_dir/config_daemon
@@ -31,8 +32,6 @@ if [ "$module" == "0" ] ; then
 	# We now have our dictionary ready. We will now use standard_name_replacer to translate the string interactome database into ENSEMBL genes IDs.
 	echo 'Replacing names'
 	standard_name_replacer -i $db_path'/human.protein.links.v12.0.txt' -I $dict -s ' ' -c 1,2 -f 1 -t 2 | sed -E "s/ /\t/g" | tail -n+2 > $db_path'/nodes_score.txt'
-	echo 'Launching text2binary'
-	sbatch $aux_sh'/launch_text2binary_matrix'
 	echo 'Done :)'
 fi
 
