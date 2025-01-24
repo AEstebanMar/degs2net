@@ -1,13 +1,13 @@
 #! /usr/bin/env bash
 
 
-config_daemon=$1
+input_data=$1
+config_daemon=$input_data/config_daemon
 module=$2
 mode=$3
 aux_opt=$4
 current_dir=`pwd`
 aux_sh=$current_dir/aux_sh
-config_daemon=$current_dir/config_daemon
 source $config_daemon
 source ~soft_bio_267/initializes/init_autoflow
 source ~soft_bio_267/initializes/init_python
