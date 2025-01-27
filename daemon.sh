@@ -1,14 +1,12 @@
 #! /usr/bin/env bash
 
 
-input_data=$1
-config_daemon=$input_data/config_daemon
-module=$2
-mode=$3
-aux_opt=$4
+module=$1
+mode=$2
+aux_opt=$3
 current_dir=`pwd`
 aux_sh=$current_dir/aux_sh
-source $config_daemon
+source $current_dir/config_daemon
 source ~soft_bio_267/initializes/init_autoflow
 source ~soft_bio_267/initializes/init_python
 export db_path=$current_dir/databases
@@ -35,45 +33,30 @@ if [ "$module" == "0" ] ; then
 	echo 'Done :)'
 fi
 
-
 if [ "$module" == "1" ]; then
-	mkdir -p $exec_path/results/kernel
+	mkdir -p $exec_path/execution
+	execution_parameters=$current_dir/execution_parameters
+	datasets=`cut -f 1 $execution_parameters`
+	echo $input_path
     variables=`echo -e "
-        \\$input_file=$db_path/nodes_score.txt,
-        \\$db_path=$db_path,
+    	\\$datasets=$datasets,
+    	\\$execution_parameters=$execution_parameters,
+    	\\$kernel_path=$exec_path/kernel/netanalyzer_0001,
+    	\\$input_file=$input_path,
+    	\\$db_path=$db_path,
+    	\\$pvalue_cutoff=$pvalue_cutoff,
+    	\\$target_genes=$target_genes
     " | tr -d '[:space:]' `
-
-    AutoFlow -w $current_dir/templates/embedding.af -m '60gb' -c 1 -n 'cal' -V $variables $aux_opt -o $exec_path/results/kernel -e -L
-fi
-
-
-if [ "$module" == "2" ]; then
-	mkdir -p $exec_path/results/execution
-	file_paths=`cat $tracker`
-	for file_path in ${file_paths[@]}
-	do
-		input_path=`echo "$file_path" | cut -f 1 -d ","`
-		name=`echo "$file_path" | cut -f 2 -d ","`
-		echo $input_path
-		echo $name
-        variables=`echo -e "
-        	\\$kernel_path=$exec_path/results/kernel/netanalyzer_0001,
-        	\\$input_file=$input_path,
-        	\\$db_path=$db_path,
-        	\\$pvalue_cutoff=$pvalue_cutoff,
-        	\\$target_genes=$target_genes
-        " | tr -d '[:space:]' `
-        
-        if [ "$mode" == "exec" ] ; then
-			echo Launching main workflow
-			AutoFlow -w $current_dir/templates/degs2net.af -m '10gb' -c 1 -n 'cal' -V $variables $aux_opt -o $exec_path/results/execution/$name -e -L
-		elif [ "$mode" == "check" ] ; then
-			flow_logger -w -e $exec_path/results/execution/$name -r all
-		elif [ "$mode" == "rescue" ] ; then
-			echo Regenerating code
-			AutoFlow -w $template -V $variables $aux_opt -o $exec_path/results/execution/$name -v
-			echo Launching pending and failed jobs
-			flow_logger -w -e $exec_path/results/execution/$name -l -p -b
-		fi
-	done
+    
+    if [ "$mode" == "exec" ] ; then
+		echo Launching main workflow
+		AutoFlow -w $current_dir/templates/degs2net.af -m '10gb' -c 1 -n 'cal' -V $variables $aux_opt -o $exec_path/execution -e -L
+	elif [ "$mode" == "check" ] ; then
+		flow_logger -w -e $exec_path/execution -r all
+	elif [ "$mode" == "rescue" ] ; then
+		echo Regenerating code
+		AutoFlow -w $template -V $variables $aux_opt -o $exec_path/execution/$name -v
+		echo Launching pending and failed jobs
+		flow_logger -w -e $exec_path/execution -l -p -b
+	fi
 fi
