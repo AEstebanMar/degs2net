@@ -1,8 +1,23 @@
+degree_normalization){
+	resources: -m '60gb' -t '0-02:30:00'
+	echo -e "normalize_matrix ('adjacency_matrices',('gene','gene')) by='rows_cols'" > dsl
+	echo -e "write_matrix ('adjacency_matrices',('gene','gene')) 'adjacency_matrix'" >> dsl
+	?
+	netanalyzer -i $db_path/nodes_score.txt -f pair -l "gene" --both_repre_formats --dsl_script dsl
+}
+
+get_embedding){
+	?
+	netanalyzer -i degree_normalization)/adjacency_matrix.npy -n degree_normalization)/adjacency_matrix_rowIds \
+	 -f bin -k "rf" -K ./kernel --both_repre_formats -z -l 'genes' -u 'genes'
+}
+
 extract_subgraph){
 	resources: -c 1 -t 0-00:59:59 -m '10gb'
 	source ~soft_bio_267/initializes/init_python
 	grep -w 'PREVALENT_DEG' $input_file | cut -f 1 > DEG_list
-	sed -i -e 's/^/seed\t/' DEG_list 
+	sed -i -e 's/^/seed\t/' DEG_list
+	cut -f 1,2 nodes_score.txt | tr "\t" "\n" | uniq > network_genes
 	?
 	netanalyzer -i $db_path/nodes_score.txt -G DEG_list --extract_subgraphs 
 	retVal=$?
