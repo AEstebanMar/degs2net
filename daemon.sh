@@ -34,15 +34,14 @@ if [ "$module" == "0" ] ; then
 fi
 
 if [ "$module" == "1" ]; then
-	mkdir -p $exec_path/execution
+	mkdir -p exec_degs2net
 	execution_parameters=$current_dir/execution_parameters
-	datasets=`cut -f 1 $execution_parameters`
+	datasets=`cut -f 1 $execution_parameters -d "," | tr "\n" ";"`
 	echo $input_path
     variables=`echo -e "
     	\\$datasets=$datasets,
     	\\$execution_parameters=$execution_parameters,
     	\\$kernel_path=$exec_path/kernel/netanalyzer_0001,
-    	\\$input_file=$input_path,
     	\\$db_path=$db_path,
     	\\$pvalue_cutoff=$pvalue_cutoff,
     	\\$target_genes=$target_genes
@@ -50,13 +49,13 @@ if [ "$module" == "1" ]; then
     
     if [ "$mode" == "exec" ] ; then
 		echo Launching main workflow
-		AutoFlow -w $current_dir/templates/degs2net.af -m '10gb' -c 1 -n 'cal' -V $variables $aux_opt -o $exec_path/execution -e -L
+		AutoFlow -w $current_dir/templates/degs2net.af -m '10gb' -c 1 -n 'cal' -V $variables $aux_opt -o exec_degs2net -e -L
 	elif [ "$mode" == "check" ] ; then
-		flow_logger -w -e $exec_path/execution -r all
+		flow_logger -w -e exec_degs2net -r all
 	elif [ "$mode" == "rescue" ] ; then
 		echo Regenerating code
-		AutoFlow -w $template -V $variables $aux_opt -o $exec_path/execution/$name -v
+		AutoFlow -w $template -V $variables $aux_opt -o exec_degs2net -v
 		echo Launching pending and failed jobs
-		flow_logger -w -e $exec_path/execution -l -p -b
+		flow_logger -w -e exec_degs2net -l -p -b
 	fi
 fi
