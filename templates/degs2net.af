@@ -1,15 +1,24 @@
 filter_node_list_[$datasets]){
-	cut -f 1,2 nodes_score.txt | tr "\t" "\n" | uniq > network_genes
-	grep -v 'FILTERED_OUT' $input_file | cut -f 1 > expressed_gene
+	input_file=`grep (*) $execution_parameters | cut -f 2 -d ","`   
 	?
-
+	grep 'FILTERED_OUT' $input_file | cut -f 1 | grep ENS > discarded_genes
 }
 
-degree_normalization_[$datasets]){
+gather_expressed_genes){
+	paths=( !JobRegExp:filter_node_list:-!/discarded_genes )
+	touch discard_list
+	for path in ${paths[@]}; do
+		?
+		cat $path >> discard_list
+	done
+	sort -u discard_list > final_discard_list
+	grep -vf final_discard_list $db_path/nodes_score.txt > filtered_nodes.txt
+}
+
+degree_normalization){
 	resources: -m '60gb' -t '0-02:30:00'
 	echo -e "normalize_matrix ('adjacency_matrices',('gene','gene')) by='rows_cols'" > dsl
 	echo -e "write_matrix ('adjacency_matrices',('gene','gene')) 'adjacency_matrix'" >> dsl
-	
 	?
 	netanalyzer -i $db_path/nodes_score.txt -f pair -l "gene" --both_repre_formats --dsl_script dsl
 }
@@ -55,8 +64,6 @@ cluster_prioritization){
 	ranker -k $kernel_path/kernel.npy -n $kernel_path/kernel_rowIds --seed_nodes subgraph_clustering)/clusters_aggregated.txt -f disease_genes.txt 
 }
 
-
-
 functional_analysis){
 	resources: -c 16 -t 0-00:59:59 -m '60gb'
 	source ~soft_bio_267/initializes/init_degenes_hunter
@@ -68,8 +75,3 @@ functional_analysis){
         exit $retVal
     fi
 }
-
-
-#seed \t gen1,gen2,gen3,gen4 -- formato extract_subgraph
-# netanalyzer -i grafo_en_formato_parejas -l $LAYERS -g gene_network --graph_options 'method=graphviz' -G gene_groups
-# netanalyzer -i extract_subgraph)/subgraph.txt -g gene_network --graph_options 'method=graphviz' -G louvain_discovered_clusters.txt
