@@ -29,7 +29,7 @@ if [ "$module" == "0" ] ; then
 	dict=$db_path'/dictionary_ENSP_ENSG'
 	# We now have our dictionary ready. We will now use standard_name_replacer to translate the string interactome database into ENSEMBL genes IDs.
 	echo 'Replacing names'
-	standard_name_replacer -i $db_path'/human.protein.links.v12.0.txt' -I $dict -s ' ' -c 1,2 -f 1 -t 2 | sed -E "s/ /\t/g" | tail -n+2 > $db_path'/nodes_score.txt'
+	standard_name_replacer -i $db_path'/human.protein.links.v12.0.txt' -I $dict -s ' ' -c 1,2 -f 1 -t 2 | sed -E "s/ /\t/g" | awk -F"\t" '$3>'$confidence |  tail -n+2 > $db_path'/string_network.txt'
 	echo 'Done :)'
 fi
 
