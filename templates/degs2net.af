@@ -1,18 +1,15 @@
 filter_node_list_[$datasets]){
-	input_file=`grep (*) $execution_parameters | cut -f 2 -d ","`   
+	input_file=`grep -w (*) $execution_parameters | cut -f 2 -d ","`   
 	?
 	grep 'FILTERED_OUT' $input_file | cut -f 1 | grep ENS > discarded_genes
 }
 
 gather_expressed_genes){
 	paths=( !JobRegExp:filter_node_list:-!/discarded_genes )
-	touch discard_list
-	for path in ${paths[@]}; do
-		?
-		cat $path >> discard_list
-	done
+	?
+	cat $paths > discard_list
 	sort -u discard_list > final_discard_list
-	grep -vf final_discard_list $db_path/nodes_score.txt > filtered_nodes.txt
+	grep -vf final_discard_list $db_path/string_network.txt > filtered_nodes.txt
 }
 
 degree_normalization){
@@ -20,7 +17,7 @@ degree_normalization){
 	echo -e "normalize_matrix ('adjacency_matrices',('gene','gene')) by='rows_cols'" > dsl
 	echo -e "write_matrix ('adjacency_matrices',('gene','gene')) 'adjacency_matrix'" >> dsl
 	?
-	netanalyzer -i $db_path/nodes_score.txt -f pair -l "gene" --both_repre_formats --dsl_script dsl
+	netanalyzer -i $db_path/string_network.txt -f pair -l "gene" --both_repre_formats --dsl_script dsl
 }
 
 get_embedding){
@@ -35,7 +32,7 @@ extract_subgraph){
 	grep -w 'PREVALENT_DEG' $input_file | cut -f 1 > DEG_list
 	sed -i -e 's/^/seed\t/' DEG_list
 	?
-	netanalyzer -i $db_path/nodes_score.txt -G DEG_list --extract_subgraphs 
+	netanalyzer -i $db_path/string_network.txt -G DEG_list --extract_subgraphs 
 	retVal=$?
     if [ $retVal -ne 0 ]; then
         echo ERROR: Last command exited with code $retVal
