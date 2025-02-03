@@ -1,5 +1,5 @@
 filter_node_list_[$datasets]){
-	input_file=`grep -w (*) $execution_parameters | cut -f 2 -d ","`   
+	input_file=`grep -w (*) $execution_parameters | cut -f 2`   
 	?
 	grep 'FILTERED_OUT' $input_file | cut -f 1 | grep ENS > discarded_genes
 }
@@ -21,6 +21,7 @@ degree_normalization){
 }
 
 get_embedding){
+	resources: -m '500gb' -t '1-00:00:00'
 	?
 	netanalyzer -i degree_normalization)/adjacency_matrix.npy -n degree_normalization)/adjacency_matrix_rowIds \
 	 -f bin -k "rf" -K kernel --both_repre_formats -z -l 'genes' -u 'genes'
@@ -29,7 +30,7 @@ get_embedding){
 extract_subgraph_[$datasets]){
 	resources: -c 1 -t 0-00:59:59 -m '10gb'
 	source ~soft_bio_267/initializes/init_python
-	input_file=`grep -w (*) $execution_parameters | cut -f 2 -d ","` 
+	input_file=`grep -w (*) $execution_parameters | cut -f 2` 
 	grep -w 'PREVALENT_DEG' $input_file | cut -f 1 > DEG_list
 	sed -i -e 's/^/seed\t/' DEG_list
 	?
@@ -41,12 +42,11 @@ extract_subgraph_[$datasets]){
     fi
 }
 
-subgraph_clustering){
+subgraph_clustering_[$datasets]){
 	resources: -c 1 -t 0-00:59:59 -m '10gb'
 	source ~soft_bio_267/initializes/init_python
-	seed_subgraphs=( !JobRegExp:extract_subgraph:-!/seed_subgraph )
 	?
-	netanalyzer -i $seed_subgraphs -f pair -b louvain #modificar archivo de entrada de extract_subgraph
+	netanalyzer -i !extract_subgraph_*!/seed_subgraph -f pair -b louvain #modificar archivo de entrada de extract_subgraph
 	#netanalyzer -i extract_subgraph)/subgraph.txt -g gene_network --graph_options 'method=graphviz' -G louvain_discovered_clusters.txt
 	aggregate_column_data -i louvain_discovered_clusters.txt -x 1 -a 2 -s ',' > clusters_aggregated.txt
 	retVal=$?
@@ -56,11 +56,12 @@ subgraph_clustering){
     fi
 }
 
-cluster_prioritization){
+cluster_prioritization_[$datasets]){
 	source ~soft_bio_267/initializes/init_python
-	awk '{print $1}' subgraph_clustering)/clusters_aggregated.txt | sed 's/$/\t'$target_genes'/' > ./disease_genes.txt
+	target_genes=`grep -w (*) $execution_parameters | cut -f 3`
+	awk '{print $1}' !subgraph_clustering_*!/clusters_aggregated.txt | sed 's/$/\t'"$target_genes"'/' > ./disease_genes.txt
 	?
-	ranker -k $get_embedding)/kernel.npy -n get_embedding)/kernel_rowIds --seed_nodes subgraph_clustering)/clusters_aggregated.txt -f disease_genes.txt 
+	ranker -k get_embedding)/kernel.npy -n get_embedding)/kernel_rowIds --seed_nodes !subgraph_clustering_*!/clusters_aggregated.txt -f disease_genes.txt 
 }
 
 functional_analysis){
