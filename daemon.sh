@@ -29,22 +29,22 @@ if [ "$module" == "0" ] ; then
 	dict=$db_path'/dictionary_ENSP_ENSG'
 	# We now have our dictionary ready. We will now use standard_name_replacer to translate the string interactome database into ENSEMBL genes IDs.
 	echo 'Replacing names'
-	standard_name_replacer -i $db_path'/human.protein.links.v12.0.txt' -I $dict -s ' ' -c 1,2 -f 1 -t 2 | sed -E "s/ /\t/g" | awk -F"\t" '$3>'$confidence |  tail -n+2 > $db_path'/string_network.txt'
+	#standard_name_replacer -i $db_path'/human.protein.links.v12.0.txt' -I $dict -s ' ' -c 1,2 -f 1 -t 2 | sed -E "s/ /\t/g" | awk -F"\t" '$3>'$confidence |  tail -n+2 > $db_path'/string_network.txt'
+	standard_name_replacer -i $db_path'/human.protein.links.v12.0.txt' -I $dict -s ' ' -c 1,2 -f 1 -t 2 | sed -E "s/ /\t/g" |  tail -n+2 > $db_path'/string_whole_network.txt'
 	echo 'Done :)'
 fi
 
 if [ "$module" == "1" ]; then
 	mkdir -p exec_degs2net
 	execution_parameters=$current_dir/execution_parameters
-	datasets=`cut -f 1 $execution_parameters -d "," | tr "\n" ";"`
+	datasets=`cut -f 1 $execution_parameters | tr "\n" ";"`
 	echo $input_path
     variables=`echo -e "
     	\\$datasets=$datasets,
     	\\$execution_parameters=$execution_parameters,
     	\\$kernel_path=$exec_path/kernel/netanalyzer_0001,
     	\\$db_path=$db_path,
-    	\\$pvalue_cutoff=$pvalue_cutoff,
-    	\\$target_genes=$target_genes
+    	\\$pvalue_cutoff=$pvalue_cutoff
     " | tr -d '[:space:]' `
     
     if [ "$mode" == "exec" ] ; then
