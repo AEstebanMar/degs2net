@@ -1,7 +1,10 @@
 filter_node_list_[$datasets]){
+	source ~soft_bio_267/initializes/init_degenes_hunter
 	input_file=`grep -w (*) $execution_parameters | cut -f 2`   
 	?
 	grep 'FILTERED_OUT' $input_file | cut -f 1 | grep ENS > discarded_genes
+	sed -i '1s/^/ENSEMBL_gene\n/' discarded_genes
+	add_annotation.R -i discarded_genes -o discarded_genes_annotated -I ENSEMBL
 }
 
 gather_expressed_genes){
@@ -55,11 +58,23 @@ cluster_prioritization_[$datasets]){
 network_representation_[$datasets]){
 	resources: -c 1 -t 0-00:59:59 -m '10gb'
 	source ~soft_bio_267/initializes/init_python
+	source ~soft_bio_267/initializes/init_degenes_hunter
 	target_genes=`grep -w (*) $execution_parameters | cut -f 3`
 	cut -f 2,3 !subgraph_extraction_clustering_*!/der_discovered_clusters.txt > group_nodes
+	sed -i '1s/^/Cluster_id\tENSEMBL_gene\n/' group_nodes 
+	add_annotation.R -i group_nodes -o group_nodes_tmp -c 2 -I ENSEMBL
+	cut -f 1,3 group_nodes_tmp | tail -n+2  > group_nodes
+
+	cut -f 1 gather_expressed_genes)/nodes_network > ENS_genes_tmp
+	cut -f 2 gather_expressed_genes)/nodes_network >> ENS_genes_tmp
+	sort -u ENS_genes_tmp | sed '1s/^/Gene\n/' > ENS_genes
+	add_annotation.R -i ENS_genes -o ENS_genes_annotated -I ENSEMBL
+	tail -n+2 ENS_genes_annotated > ENS_genes_dictionary
+	standard_name_replacer -i gather_expressed_genes)/nodes_network -I ENS_genes_dictionary -c 1,2 -f 1 -t 2 -o nodes_network_annotated
+	rm group_nodes_tmp ENS_genes_tmp ENS_genes ENS_genes_annotated
 	LAYERS='gene,[A-Za-z0-9]'
 	?
-	netanalyzer -i gather_expressed_genes)/nodes_network -l $LAYERS -g gene_network --graph_options 'method=sigma2,layout=fr' -G group_nodes -r $target_genes 
+	netanalyzer -i nodes_network_annotated -l $LAYERS -g gene_network --graph_options 'method=sigma2' -G group_nodes -r $target_genes 
 }
 
 functional_analysis_[$datasets]){
