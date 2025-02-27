@@ -66,7 +66,8 @@ network_representation_[$datasets]){
 	resources: -c 1 -t 0-00:59:59 -m '10gb'
 	source ~soft_bio_267/initializes/init_python
 	source ~soft_bio_267/initializes/init_degenes_hunter
-	target_genes=`grep -w (*) $execution_parameters | cut -f 3`
+	grep -w (*) $execution_parameters | cut -f 3 > target_genes
+	sed -i -e 's/^/seed\t/' target_genes
 	cut -f 2,3 !subgraph_extraction_clustering_*!/der_discovered_clusters.txt > group_nodes
 	sed -i '1s/^/Cluster_id\tENSEMBL_gene\n/' group_nodes 
 	add_annotation.R -i group_nodes -o group_nodes_tmp -c 2 -I ENSEMBL
@@ -74,7 +75,7 @@ network_representation_[$datasets]){
 	rm group_nodes_tmp 
 	LAYERS='gene,[A-Za-z0-9]'
 	?
-	netanalyzer -i gather_expressed_genes)/nodes_network_annotated -l $LAYERS -g gene_network --graph_options 'method=sigma2,width=1200px,height=900px,iterations=200' -G group_nodes -r $target_genes 
+	net_explorer -i "string,gather_expressed_genes)/nodes_network_annotated" --seed_nodes target_genes -N --graph_options 'method=sigma2,width=1200px,height=900px,iterations=200' --embedding_proj "umap" -G group_nodes 
 }
 
 functional_analysis_[$datasets]){
