@@ -35,25 +35,6 @@ if [ "$module" == "0" ] ; then
 fi
 
 
-# if [ "$module" == "0" ] ; then
-# 	echo "Downloading databases"
-# 	mkdir -p $db_path
-# 	# We will first download the protein-protein interaction database from STRING. We will then change STRING IDs to ENSEMBL IDs to create a dictionary ENSEMBL-protein to ENSEMBL-gene.
-# 	wget "https://stringdb-downloads.org/download/protein.links.full.v12.0/9606.protein.links.full.v12.0.txt.gz" -O $download_path'/9606.protein.links.v12.0.txt.gz'
-# 	gzip -d $download_path'/9606.protein.links.v12.0.txt.gz'
-# 	wget "https://stringdb-downloads.org/download/protein.aliases.v12.0/9606.protein.aliases.v12.0.txt.gz" -O $download_path'/9606.protein.aliases.v12.0.txt.gz'
-# 	gzip -d $download_path'/9606.protein.aliases.v12.0.txt.gz'
-# 	# Changing STRING IDs to ENSEMBL IDs
-# 	cut -f 1,2,16 -d ' ' $download_path'/9606.protein.links.v12.0.txt' > $db_path'/human.protein.links.v12.0.txt' # columns that refer to protein1, protein2 and combined_score
-# 	grep 'Ensembl_gene' $download_path'/9606.protein.aliases.v12.0.txt' > $db_path'/dictionary_ENSP_ENSG'
-# 	dict=$db_path'/dictionary_ENSP_ENSG'
-# 	# We now have our dictionary ready. We will now use standard_name_replacer to translate the string interactome database into ENSEMBL genes IDs.
-# 	echo 'Replacing names'
-# 	#standard_name_replacer -i $db_path'/human.protein.links.v12.0.txt' -I $dict -s ' ' -c 1,2 -f 1 -t 2 | sed -E "s/ /\t/g" | awk -F"\t" '$3>'$confidence |  tail -n+2 > $db_path'/string_network.txt'
-# 	standard_name_replacer -i $db_path'/human.protein.links.v12.0.txt' -I $dict -s ' ' -c 1,2 -f 1 -t 2 | sed -E "s/ /\t/g" |  tail -n+2 > $db_path'/string_whole_network.txt'
-# 	echo 'Done :)'
-#fi
-
 if [ "$module" == "1" ]; then
 	mkdir -p exec_degs2net
 	execution_parameters=$current_dir/execution_parameters
