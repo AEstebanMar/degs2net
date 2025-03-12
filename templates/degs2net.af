@@ -2,28 +2,27 @@ filter_node_list_[$datasets]){
 	source ~soft_bio_267/initializes/init_degenes_hunter
 	input_file=`grep -w (*) $execution_parameters | cut -f 2`   
 	?
-	grep 'FILTERED_OUT' $input_file | cut -f 1 | grep ENS > discarded_genes
-	sed -i '1s/^/ENSEMBL_gene\n/' discarded_genes
-	add_annotation.R -i discarded_genes -o discarded_genes_annotated -I ENSEMBL
+	grep -v 'FILTERED_OUT' $input_file | cut -f 1 | grep ENSG > expressed_genes
+	sed -i '1s/^/ENSEMBL_gene\n/' expressed_genes
+	add_annotation.R -i expressed_genes -o expressed_genes_annotated -I ENSEMBL
 }
 
 gather_expressed_genes){
 	source ~soft_bio_267/initializes/init_python
-	paths=( !JobRegExp:filter_node_list:-!/discarded_genes )
-	cat $paths > discard_list
-	sort -u discard_list > final_discard_list
-	#grep -vf final_discard_list $db_path/string_network.txt > filtered_nodes_network.txt
+	paths=( !JobRegExp:filter_node_list:-!/expressed_genes )
+	cat ${paths[@]} >> ./expressed_genes_list
+	sort -u ./expressed_genes_list > ./final_expressed_list
+	#grep -F -f final_expressed_list string_network.txt > string_expressed_network.txt
+	grep -vf ./final_expressed_list $db_path/string_network.txt > ./discarded_genes.txt
 	?
-	#netanalyzer -i filtered_nodes_network.txt -f pair -l main --output_network nodes_network
-	netanalyzer -i $db_path/string_network.txt -f pair -l main -d final_discard_list --filter_connected_components 5 --output_network nodes_network
-	#rm filtered_nodes_network.txt
-	cut -f 1 ./nodes_network > ENS_genes_tmp
-	cut -f 2 ./nodes_network >> ENS_genes_tmp
-	sort -u ENS_genes_tmp | sed '1s/^/Gene\n/' > ENS_genes
-	add_annotation.R -i ENS_genes -o ENS_genes_annotated -I ENSEMBL
-	tail -n+2 ENS_genes_annotated > ENS_genes_dictionary
-	standard_name_replacer -i ./nodes_network -I ENS_genes_dictionary -c 1,2 -f 1 -t 2 -o nodes_network_annotated
-	rm ENS_genes_tmp ENS_genes ENS_genes_annotated
+	netanalyzer -i $db_path/string_network.txt -f pair -l main -d ./discarded_genes.txt --filter_connected_components 5 --output_network ./nodes_network
+	cut -f 1 ./nodes_network > ./ENS_genes_tmp
+	cut -f 2 ./nodes_network >> ./ENS_genes_tmp
+	sort -u ./ENS_genes_tmp | sed '1s/^/Gene\n/' > ./ENS_genes
+	add_annotation.R -i ./ENS_genes -o ./ENS_genes_annotated -I ENSEMBL
+	tail -n+2 ./ENS_genes_annotated > ./ENS_genes_dictionary
+	standard_name_replacer -i ./nodes_network -I ./ENS_genes_dictionary -c 1,2 -f 1 -t 2 -o ./nodes_network_annotated
+	rm ./ENS_genes_tmp ./ENS_genes ./ENS_genes_annotated
 }
 
 degree_normalization){
@@ -58,8 +57,10 @@ cluster_prioritization_[$datasets]){
 	source ~soft_bio_267/initializes/init_python
 	target_genes=`grep -w (*) $execution_parameters | cut -f 3`
 	awk '{print $1}' !subgraph_extraction_clustering_*!/clusters_aggregated.txt | sed 's/$/\t'"$target_genes"'/' > ./disease_genes.txt
+	text2binary_matrix -i gather_expressed_genes)/nodes_network -t "pair" -O "bin" -o ./nodes_network_matrix 
 	?
-	ranker -k get_embedding)/kernel.npy -n get_embedding)/kernel_rowIds --seed_nodes !subgraph_extraction_clustering_*!/clusters_aggregated.txt -f disease_genes.txt 
+	ranker -k get_embedding)/kernel.npy -n get_embedding)/kernel_rowIds --adj_matrix ./nodes_network_matrix.npy --seed_nodes !subgraph_extraction_clustering_*!/clusters_aggregated.txt -f disease_genes.txt --score2pvalue "logistic" --representation_seed_metric "fisher" --header
+	#ranker -k get_embedding)/kernel.npy -n get_embedding)/kernel_rowIds --adj_matrix ./nodes_network_matrix.npy --seed_nodes !subgraph_extraction_clustering_*!/clusters_aggregated.txt -f disease_genes.txt --score2pvalue "logistic" --representation_seed_metric "fisher" -t 5 --header
 }
 
 network_representation_[$datasets]){
@@ -68,6 +69,9 @@ network_representation_[$datasets]){
 	source ~soft_bio_267/initializes/init_degenes_hunter
 	grep -w (*) $execution_parameters | cut -f 3 > target_genes
 	sed -i -e 's/^/seed\t/' target_genes
+	sed -i '1s/^/seed\tENSEMBL_gene\n/' target_genes 
+	add_annotation.R -i target_genes -o target_genes_tmp -c 2 -I ENSEMBL
+	cut -f 1,3 target_genes_tmp | tail -n+2  > target_genes
 	cut -f 2,3 !subgraph_extraction_clustering_*!/der_discovered_clusters.txt > group_nodes
 	sed -i '1s/^/Cluster_id\tENSEMBL_gene\n/' group_nodes 
 	add_annotation.R -i group_nodes -o group_nodes_tmp -c 2 -I ENSEMBL
@@ -75,14 +79,14 @@ network_representation_[$datasets]){
 	rm group_nodes_tmp 
 	LAYERS='gene,[A-Za-z0-9]'
 	?
-	net_explorer -i "string,gather_expressed_genes)/nodes_network_annotated" --seed_nodes target_genes -N --graph_options 'method=sigma2,width=1200px,height=900px,iterations=200' --embedding_proj "umap" -G group_nodes 
+	net_explorer -i "string,gather_expressed_genes)/nodes_network_annotated" --seed_nodes target_genes -N --graph_options 'method=sigma2,width=1200px,height=900px,iterations=200' --embedding_proj "umap" -G group_nodes -g network_umap
 }
 
 functional_analysis_[$datasets]){
 	resources: -c 16 -t 0-00:59:59 -m '60gb'
 	source ~soft_bio_267/initializes/init_degenes_hunter
 	?
-	clusters_to_enrichment.R -i !subgraph_clustering_*!/clusters_aggregated.txt -w [cpu] -o functional_results -f MF,BP,CC,KEGG,Reactome -p $pvalue_cutoff -k ENSEMBL -O "Human"
+	clusters_to_enrichment.R -i !subgraph_extraction_clustering_*!/clusters_aggregated.txt -w [cpu] -o functional_results -f MF,BP,CC,KEGG,Reactome -p $pvalue_cutoff -k ENSEMBL -O "Human"
 	retVal=$?
     if [ $retVal -ne 0 ]; then
         echo ERROR: Last command exited with code $retVal
