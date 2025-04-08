@@ -3,8 +3,6 @@ filter_node_list_[$datasets]){
 	input_file=`grep -w (*) $execution_parameters | cut -f 2`   
 	?
 	grep -v 'FILTERED_OUT' $input_file | cut -f 1 | grep ENSG > expressed_genes
-	sed -i '1s/^/ENSEMBL_gene\n/' expressed_genes
-	add_annotation.R -i expressed_genes -o expressed_genes_annotated -I ENSEMBL
 }
 
 gather_expressed_genes){
@@ -12,8 +10,10 @@ gather_expressed_genes){
 	paths=( !JobRegExp:filter_node_list:-!/expressed_genes )
 	cat ${paths[@]} >> ./expressed_genes_list
 	sort -u ./expressed_genes_list > ./final_expressed_list
-	#grep -F -f final_expressed_list string_network.txt > string_expressed_network.txt
-	grep -vf ./final_expressed_list $db_path/string_network.txt > ./discarded_genes.txt
+	grep -vf ./final_expressed_list $db_path/string_network.txt > ./discarded_genes_network.txt
+	cut -f 1 ./discarded_genes_network.txt > ./discarded_genes_tmp.txt
+	cut -f 2 ./discarded_genes_network.txt >> ./discarded_genes_tmp.txt
+	sort -u ./discarded_genes_tmp.txt > ./discarded_genes.txt
 	?
 	netanalyzer -i $db_path/string_network.txt -f pair -l main -d ./discarded_genes.txt --filter_connected_components 5 --output_network ./nodes_network
 	cut -f 1 ./nodes_network > ./ENS_genes_tmp
@@ -48,19 +48,24 @@ subgraph_extraction_clustering_[$datasets]){
 	grep -w 'PREVALENT_DEG' $input_file | cut -f 1 > DEG_list
 	sed -i -e 's/^/seed\t/' DEG_list
 	?
-	netanalyzer -i gather_expressed_genes)/nodes_network -f pair -o . -l genes -b der -G DEG_list --seed 1 --output_build_clusters ./der_discovered_clusters.txt
+	netanalyzer -i gather_expressed_genes)/nodes_network -f pair -o . -l genes -b der -G DEG_list \
+														 --seed 1 --output_build_clusters ./der_discovered_clusters.txt
 	aggregate_column_data -i der_discovered_clusters.txt -x 2 -a 3 -s ',' > clusters_aggregated.txt
 }
 
 
 cluster_prioritization_[$datasets]){
 	source ~soft_bio_267/initializes/init_python
+	source ~soft_bio_267/initializes/init_degenes_hunter
 	target_genes=`grep -w (*) $execution_parameters | cut -f 3`
 	awk '{print $1}' !subgraph_extraction_clustering_*!/clusters_aggregated.txt | sed 's/$/\t'"$target_genes"'/' > ./disease_genes.txt
 	text2binary_matrix -i gather_expressed_genes)/nodes_network -t "pair" -O "bin" -o ./nodes_network_matrix 
 	?
-	ranker -k get_embedding)/kernel.npy -n get_embedding)/kernel_rowIds --adj_matrix ./nodes_network_matrix.npy --seed_nodes !subgraph_extraction_clustering_*!/clusters_aggregated.txt -f disease_genes.txt --score2pvalue "logistic" --representation_seed_metric "fisher" --header
-	#ranker -k get_embedding)/kernel.npy -n get_embedding)/kernel_rowIds --adj_matrix ./nodes_network_matrix.npy --seed_nodes !subgraph_extraction_clustering_*!/clusters_aggregated.txt -f disease_genes.txt --score2pvalue "logistic" --representation_seed_metric "fisher" -t 5 --header
+	ranker -k get_embedding)/kernel.npy -n get_embedding)/kernel_rowIds --adj_matrix ./nodes_network_matrix.npy \
+										--seed_nodes !subgraph_extraction_clustering_*!/clusters_aggregated.txt \
+										-f disease_genes.txt --score2pvalue "logistic" --representation_seed_metric "fisher" \
+										--header --output_top top_genes -t 5
+	add_annotation.R -i top_genes -o top_genes_annotated -I ENSEMBL
 }
 
 network_representation_[$datasets]){
