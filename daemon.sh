@@ -4,8 +4,8 @@
 module=$1
 mode=$2
 aux_opt=$3
-current_dir=`pwd`
-aux_sh=$current_dir/aux_sh
+export current_dir=`pwd`
+export PATH=$current_dir/aux_sh:$PATH
 source $current_dir/config_daemon
 source ~soft_bio_267/initializes/init_autoflow
 source ~soft_bio_267/initializes/init_python
@@ -59,4 +59,10 @@ if [ "$module" == "1" ]; then
 		echo Launching pending and failed jobs
 		flow_logger -w -e exec_degs2net -l -p -b
 	fi
+fi
+
+
+if [ "$module" == "2" ]; then
+	echo Generating reports folder
+	create_reports_folder.sh
 fi
