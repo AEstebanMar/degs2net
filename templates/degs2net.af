@@ -37,13 +37,14 @@ get_embedding){
 	resources: -m '500gb' -t '1-00:00:00'
 	?
 	netanalyzer -i degree_normalization)/adjacency_matrix.npy -n degree_normalization)/adjacency_matrix_rowIds \
-	 -f bin -k "rf" -K kernel --both_repre_formats -z -l 'genes' -u 'genes'
+	 -f bin -k "node2vec" -K kernel --both_repre_formats -z -l 'genes' -u 'genes' --embedding_add_options "'window':10,'num_walks':10,'walk_length':100,'dimensions':128"
 }
 
 
 subgraph_extraction_clustering_[$datasets]){
 	resources: -c 1 -t 0-00:59:59 -m '10gb'
 	source ~soft_bio_267/initializes/init_python
+	echo (*) > tracker
 	input_file=`grep -w (*) $execution_parameters | cut -f 2` 
 	grep -w 'PREVALENT_DEG' $input_file | cut -f 1 > DEG_list
 	sed -i -e 's/^/seed\t/' DEG_list
@@ -53,18 +54,18 @@ subgraph_extraction_clustering_[$datasets]){
 	aggregate_column_data -i der_discovered_clusters.txt -x 2 -a 3 -s ',' > clusters_aggregated.txt
 }
 
-
 cluster_prioritization_[$datasets]){
 	source ~soft_bio_267/initializes/init_python
 	source ~soft_bio_267/initializes/init_degenes_hunter
+	echo (*) > tracker
 	target_genes=`grep -w (*) $execution_parameters | cut -f 3`
 	awk '{print $1}' !subgraph_extraction_clustering_*!/clusters_aggregated.txt | sed 's/$/\t'"$target_genes"'/' > ./disease_genes.txt
-	text2binary_matrix -i gather_expressed_genes)/nodes_network -t "pair" -O "bin" -o ./nodes_network_matrix 
+	text2binary_matrix -i gather_expressed_genes)/nodes_network -t "pair" -O "bin" -o ./nodes_network_matrix
 	?
 	ranker -k get_embedding)/kernel.npy -n get_embedding)/kernel_rowIds --adj_matrix ./nodes_network_matrix.npy \
 										--seed_nodes !subgraph_extraction_clustering_*!/clusters_aggregated.txt \
 										-f disease_genes.txt --score2pvalue "logistic" --representation_seed_metric "fisher" \
-										--header --output_top top_genes -t 5
+										--header --output_top top_genes -t 5 
 	add_annotation.R -i top_genes -o top_genes_annotated -I ENSEMBL
 }
 
@@ -72,6 +73,7 @@ network_representation_[$datasets]){
 	resources: -c 1 -t 0-00:59:59 -m '10gb'
 	source ~soft_bio_267/initializes/init_python
 	source ~soft_bio_267/initializes/init_degenes_hunter
+	echo (*) > tracker
 	grep -w (*) $execution_parameters | cut -f 3 > target_genes
 	sed -i -e 's/^/seed\t/' target_genes
 	sed -i '1s/^/seed\tENSEMBL_gene\n/' target_genes 
@@ -89,6 +91,7 @@ network_representation_[$datasets]){
 
 functional_analysis_[$datasets]){
 	resources: -c 16 -t 0-00:59:59 -m '60gb'
+	echo (*) > tracker
 	source ~soft_bio_267/initializes/init_degenes_hunter
 	?
 	clusters_to_enrichment.R -i !subgraph_extraction_clustering_*!/clusters_aggregated.txt -w [cpu] -o functional_results -f MF,BP,CC,KEGG,Reactome -p $pvalue_cutoff -k ENSEMBL -O "Human"
