@@ -11,6 +11,7 @@ source ~soft_bio_267/initializes/init_autoflow
 source ~soft_bio_267/initializes/init_python
 source ~soft_bio_267/initializes/init_degenes_hunter
 export db_path=$current_dir/databases
+export results_folder=$current_dir/results
 download_path=$db_path/download
 
 
@@ -64,5 +65,21 @@ fi
 
 if [ "$module" == "2" ]; then
 	echo Generating reports folder
-	create_reports_folder.sh
+	create_results_folder.sh
+fi
+
+if [ "$module" == "3" ]; then
+	source ~soft_bio_267/initializes/init_htmlreportR
+	datasets=`cut -f 1 $current_dir/execution_parameters`
+	for dataset in DMD_fib; do
+		ranked_file=$results_folder"/integrated/"$dataset"/ranked_genes_all_candidates"
+		metrics_file=$results_folder"/datasets/"$dataset"/metric_table"
+		echo Writing $dataset report
+		mkdir -p $current_dir/results/report/$dataset
+		echo "Command called:"
+		echo html_report.R -d $ranked_file","$metrics_file -t templates/degs2net.txt -o $current_dir/results/report/$dataset/degs2net.html
+		html_report.R -d $metrics_file -t templates/degs2net.txt -o $current_dir/results/report/$dataset/degs2net.html
+		echo Report written in $current_dir/results/report/degs2net.html
+	done
+	echo Reports written!
 fi
