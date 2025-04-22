@@ -4,15 +4,16 @@
 module=$1
 mode=$2
 aux_opt=$3
+source ~soft_bio_267/initializes/init_autoflow
+source ~soft_bio_267/initializes/init_python
+
 export current_dir=`pwd`
 export PATH=$current_dir/aux_sh:$PATH
 source $current_dir/config_daemon
-source ~soft_bio_267/initializes/init_autoflow
-source ~soft_bio_267/initializes/init_python
-source ~soft_bio_267/initializes/init_degenes_hunter
+
 export db_path=$current_dir/databases
 export results_folder=$current_dir/results
-download_path=$db_path/download
+export download_path=$db_path/download
 
 
 # Module 0 will download the databases, process them and finish by creating the interactome.
@@ -37,49 +38,51 @@ fi
 
 
 if [ "$module" == "1" ]; then
-	mkdir -p exec_degs2net
+	wf_execution=$current_dir/exec_degs2net
+	mkdir -p $wf_execution
 	execution_parameters=$current_dir/execution_parameters
 	datasets=`cut -f 1 $execution_parameters | tr "\n" ";"`
 	echo $input_path
     variables=`echo -e "
     	\\$datasets=$datasets,
     	\\$execution_parameters=$execution_parameters,
-    	\\$kernel_path=$exec_path/kernel/netanalyzer_0001,
     	\\$db_path=$db_path,
-    	\\$pvalue_cutoff=$pvalue_cutoff
+    	\\$pvalue_cutoff=$pvalue_cutoff,
+    	\\$results_folder=$results_folder,
+    	\\$wf_execution=$wf_execution
     " | tr -d '[:space:]' `
     
     if [ "$mode" == "exec" ] ; then
 		echo Launching main workflow
-		AutoFlow -w $current_dir/templates/degs2net.af -m '10gb' -c 1 -n 'cal' -V $variables $aux_opt -o exec_degs2net -e -L
+		AutoFlow -w $current_dir/templates/degs2net.af -m '10gb' -c 1 -n 'cal' -V $variables $aux_opt -o $wf_execution -e -L
 	elif [ "$mode" == "check" ] ; then
-		flow_logger -w -e exec_degs2net -r all
+		flow_logger -w -e $wf_execution -r all
 	elif [ "$mode" == "rescue" ] ; then
 		echo Regenerating code
-		AutoFlow -w $template -V $variables $aux_opt -o exec_degs2net -v
+		AutoFlow -w $template -V $variables $aux_opt -o $wf_execution -v
 		echo Launching pending and failed jobs
-		flow_logger -w -e exec_degs2net -l -p -b
+		flow_logger -w -e $wf_execution -l -p -b
 	fi
 fi
 
 
 if [ "$module" == "2" ]; then
 	echo Generating reports folder
-	create_results_folder.sh
+	create_results_folder.sh $current_dir/execution_parameters $wf_execution
 fi
 
 if [ "$module" == "3" ]; then
+	source ~soft_bio_267/initializes/init_python
 	source ~soft_bio_267/initializes/init_htmlreportR
+	def_res=$current_dir/results
 	datasets=`cut -f 1 $current_dir/execution_parameters`
+	create_metric_table $wf_execution/all_metrics dataset $def_res/all_metrics_table -c $def_res/corrupted_metrics_data
+	rm $def_res/all_rankings $def_res/all_samples
 	for dataset in DMD_fib; do
 		ranked_file=$results_folder"/integrated/"$dataset"/ranked_genes_all_candidates"
-		metrics_file=$results_folder"/datasets/"$dataset"/metric_table"
-		echo Writing $dataset report
-		mkdir -p $current_dir/results/report/$dataset
-		echo "Command called:"
-		echo html_report.R -d $ranked_file","$metrics_file -t templates/degs2net.txt -o $current_dir/results/report/$dataset/degs2net.html
-		html_report.R -d $metrics_file -t templates/degs2net.txt -o $current_dir/results/report/$dataset/degs2net.html
-		echo Report written in $current_dir/results/report/degs2net.html
+		awk "{print $dataset "\t" $0}" $ranked_file >> $def_res/all_rankings
+		sample_metrics=$results_folder"/datasets/"$dataset"/metric_table"
+		awk "{print $dataset "\t" $0}" $sample_metrics >> $def_res/all_samples
 	done
-	echo Reports written!
+	html_report.R -d "$def_res/all_metrics_table,$def_res/all_rankings,$def_res/all_samples" -t templates/degs2net.txt -o $def_res/degs2net.html
 fi
