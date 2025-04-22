@@ -1,32 +1,37 @@
-filter_node_list_[$datasets]){
+filter_node_list){
 	source ~soft_bio_267/initializes/init_degenes_hunter
-	input_files=`awk -F '\t' '$1 == "(*)" {print $0}' $execution_parameters | cut -f 2 | tr "," "\n"`
-	rm expressed_genes
-	for input_file in ${input_files[@]}; do
-		?
-		grep -v 'FILTERED_OUT' $input_file | cut -f 1 | grep ENSG >> expressed_genes
-	done
+	while read line || [[ -n $line ]]; do
+		dataset=`echo -e "$line" | cut -f 1`
+		input_files=`echo -e "$line" | cut -f 2 | tr "," "\n"`
+		rm "exp_genes_"$dataset
+		for input_file in ${input_files[@]}; do
+			?
+			grep -v 'FILTERED_OUT' $input_file | cut -f 1 | grep ENSG >> "exp_genes_"$dataset
+			ngenes=`grep -v 'FILTERED_OUT' $input_file | tail -n +2 | wc -l`
+			nDEGs=`grep -w 'PREVALENT_DEG' $input_file | tail -n +2 | wc -l`
+			nover=`grep -w 'PREVALENT_DEG' $input_file | tail -n +2 | awk -F"\t" '$2>0' | wc -l`
+			nunder=`grep -w 'PREVALENT_DEG' $input_file | tail -n +2 | awk -F"\t" '$2<0' | wc -l`
+			echo -e "$dataset\tngenes\t"$ngenes >> $wf_execution/all_metrics
+			echo -e "$dataset\tnDEGs\t"$nDEGs >> $wf_execution/all_metrics
+			echo -e "$dataset\tnover\t"$nover >> $wf_execution/all_metrics
+			echo -e "$dataset\tnunder\t"$nunder >> $wf_execution/all_metrics			
+		done
+	done  < $execution_parameters
+	cat exp_genes_* | sort -u > final_expressed_list	
 }
 
 %gather_expressed_genes){
 	source ~soft_bio_267/initializes/init_python
 	source ~soft_bio_267/initializes/init_degenes_hunter
-	paths=( !JobRegExp:filter_node_list:-!/expressed_genes )
-	cat ${paths[@]} >> ./expressed_genes_list
-	sort -u ./expressed_genes_list > ./final_expressed_list
-	grep -vf ./final_expressed_list $db_path/string_network.txt > ./discarded_genes_network.txt
-	cut -f 1 ./discarded_genes_network.txt > ./discarded_genes_tmp.txt
-	cut -f 2 ./discarded_genes_network.txt >> ./discarded_genes_tmp.txt
-	sort -u ./discarded_genes_tmp.txt > ./discarded_genes.txt
+	#grep -vf filter_node_list)/final_expressed_list $db_path/string_network.txt > ./discarded_genes_network.txt
+	grep -vf filter_node_list)/final_expressed_list $db_path/string_network.txt | cut -f 1,2 | tr '\t' '\n'| sort -u > ./discarded_genes.txt
 	?
 	netanalyzer -i $db_path/string_network.txt -f pair -l main -d ./discarded_genes.txt --filter_connected_components 5 --output_network ./nodes_network
-	cut -f 1 ./nodes_network > ./ENS_genes_tmp
-	cut -f 2 ./nodes_network >> ./ENS_genes_tmp
-	sort -u ./ENS_genes_tmp | sed '1s/^/Gene\n/' > ./ENS_genes
+	cut -f 1,2 nodes_network | tr '\t' '\n' | sort -u | sed '1s/^/Gene\n/' > ./ENS_genes
 	add_annotation.R -i ./ENS_genes -o ./ENS_genes_annotated -I ENSEMBL
 	tail -n+2 ./ENS_genes_annotated> ./ENS_genes_dictionary
 	standard_name_replacer -i ./nodes_network -I ./ENS_genes_dictionary -c 1,2 -f 1 -t 2 -o ./nodes_network_annotated
-	rm ./ENS_genes_tmp ./ENS_genes_annotated
+	rm  ./ENS_genes_annotated
 }
 
 %degree_normalization){
@@ -57,12 +62,14 @@ filter_node_list_[$datasets]){
 	sed -i -e 's/^/seed\t/' DEG_list
 	?
 	netanalyzer -i gather_expressed_genes)/nodes_network -f pair -o . -l genes -b louvain -G DEG_list \
-														 --seed 1 --output_build_clusters ./louvain_discovered_clusters.txt
-	cut -f 2,3 louvain_discovered_clusters.txt > 
+														 --seed 1 --output_build_clusters ./louvain_discovered_clusters_tmp.txt
+	cut -f 2,3 louvain_discovered_clusters_tmp.txt > louvain_discovered_clusters.txt
 	netanalyzer -i gather_expressed_genes)/nodes_network -G ./louvain_discovered_clusters.txt -M "size;internal_edge_density" \
 				--output_metrics_by_cluster ./metrics_louvain_clusters
-	awk 'BEGIN{FS=OFS="\t"}{if ($2 >= 10 && $3 >= 0.5) print $0}'
-	aggregate_column_data -i louvain_discovered_clusters.txt -x 2 -a 3 -s ',' > clusters_aggregated.txt
+	awk 'BEGIN{FS=OFS="\t"}{if ($2 >= 5 && $3 >= 0.3) print $0}' metrics_louvain_clusters > cluster_reduction
+	aggregate_column_data -i louvain_discovered_clusters_tmp.txt -x 2 -a 3 -s ',' > clusters_aggregated_tmp.txt
+	cut -f 1 cluster_reduction | tail -n+2 > cluster_reduction_ids
+	grep -wf cluster_reduction_ids clusters_aggregated_tmp.txt > clusters_aggregated.txt
 }
 
 %cluster_prioritization_[$datasets]){
@@ -76,60 +83,9 @@ filter_node_list_[$datasets]){
 	ranker -k get_embedding)/kernel.npy -n get_embedding)/kernel_rowIds --adj_matrix ./nodes_network_matrix.npy \
 										--seed_nodes !subgraph_extraction_clustering_*!/clusters_aggregated.txt \
 										-f disease_genes.txt --score2pvalue "logistic" --representation_seed_metric "fisher" \
-										--header --output_top top_genes -t 5 
+										--output_top top_genes -t 5 
 	add_annotation.R -i top_genes -o top_genes_annotated -I ENSEMBL
 }
-
-
-create_metrics_table_[$datasets]){
-	source ~soft_bio_267/initializes/init_python
-	input_files=`awk -F '\t' '$1 == "(*)" {print $0}' $execution_parameters | cut -f 2 | tr "," "\n"`
-	n_files=`echo -e $input_files | wc -l`
-	total_genes=0
-	total_DEGs=0
-	total_over=0
-	total_under=0
-	network_ngenes=`tail -n+2 gather_expressed_genes)/ENS_genes | wc -l`
-	echo $network_ngenes
-	rm dataset_pctmapped ponderated_pctmapped all_metrics
-	for input_file in ${input_files[@]}; do
-		ngenes=`grep -v 'FILTERED_OUT' $input_file | tail -n +2 | wc -l`
-		nDEGs=`grep -w 'PREVALENT_DEG' $input_file | tail -n +2 | wc -l`
-		nover=`grep -w 'PREVALENT_DEG' $input_file | tail -n +2 | awk -F"\t" '$2>0' | wc -l`
-		nunder=`grep -w 'PREVALENT_DEG' $input_file | tail -n +2 | awk -F"\t" '$2<0' | wc -l`
-		echo $ngenes / $network_ngenes \* 100
-		pctmapped=`echo $ngenes / $network_ngenes '*' 100 | bc -l` # esto habria que convertirlo en una media ponderada por cada dataset
-		# esto está mal hecho. Primero habría que ver cuales de los genes de ngenes se encuentran en el archivo de network_genes porque 
-		# los que no esten no pueden mapear y ya hacer la division. Deberia ser 'genes del dataset que aparecen en la red / total genes del dataset'
-		total_genes=`echo $total_genes + $ngenes | bc -l`
-		total_DEGs=`echo $total_DEGs + $nDEGs | bc -l`
-		total_over=`echo $total_over + $nover | bc -l`
-		total_under=`echo $total_under + $nunder | bc -l`
-		echo $pctmapped '*' $ngenes >> dataset_pctmapped
-	done
-	set -f
-	while read line; do
-		echo -e $line
-		echo -e $line "/" $total_genes | bc -l >> ponderated_pctmapped
-	done < dataset_pctmapped
-	set +f
-	sum_pctmapped=`cat ponderated_pctmapped | tr '\n' '+'`
-	echo ${sum_pctmapped%+}
-	mean_pctmapped=`echo -e ${sum_pctmapped%+} \* 1 / $n_files | bc -l`
-
-	?
-	echo -e "(*)\ttotal_genes\t"$total_genes >> all_metrics
-	echo -e "(*)\ttotal_DEGs\t"$total_DEGs >> all_metrics
-	echo -e "(*)\ttotal_over\t"$total_over >> all_metrics
-	echo -e "(*)\ttotal_under\t"$total_under >> all_metrics
-	echo -e "(*)\tpctmapped\t"$mean_pctmapped >> all_metrics
-
-
-}
-
-
-
-
 
 
 %network_representation_[$datasets]){
