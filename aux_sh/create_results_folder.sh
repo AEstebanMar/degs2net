@@ -1,9 +1,9 @@
 #! /usr/bin/env bash
 
 
-execution_parameters=$current_dir/execution_parameters
+execution_parameters=$1
+execution_folder=$2
 dataset_names=`cut -f 1 execution_parameters`
-execution_folder=$current_dir/exec_degs2net
 
 mkdir -p $results_folder/integrated $results_folder/datasets
 
