@@ -14,6 +14,7 @@ source $current_dir/config_daemon
 export db_path=$current_dir/databases
 export results_folder=$current_dir/results
 export download_path=$db_path/download
+export wf_execution=$current_dir/exec_degs2net
 
 
 # Module 0 will download the databases, process them and finish by creating the interactome.
@@ -33,12 +34,18 @@ if [ "$module" == "0" ] ; then
 	# We now have our dictionary ready. We will now use standard_name_replacer to translate the string interactome database into ENSEMBL genes IDs.
 	echo 'Replacing names'
 	standard_name_replacer -i $download_path'/9606.protein.links.detailed.v12.0.txt' -I $db_path'/dictionary_ENSP_ENSG' -s ' ' -c 1,2 -f 1 -t 2 | sed -E "s/ /\t/g" | awk -F"\t" '$7>='$confidence | awk '{FS=OFS="\t"}{print $1, $2, $7}' | tail -n+2 > $db_path'/string_network.txt'
+	# We will now download the Homo_sapiens.GRCh38.113.gff3.gz:
+	wget 'https://ftp.ensembl.org/pub/release-113/gff3/homo_sapiens/Homo_sapiens.GRCh38.113.gff3.gz' -O $download_path'/Homo_sapiens.GRCh38.113.gff3.gz'
+	gunzip -d $download_path'/Homo_sapiens.GRCh38.113.gff3.gz'
+	# Processing of gff3 file:
+	grep 'ID=gene:ENSG' $download_path'/Homo_sapiens.GRCh38.113.gff3' | cut -f 3,9 | cut -f 1 -d ';' | sed 's/ID=gene://g' > $db_path/'seq_type'
+	# Getting string_network.txt genes:
+	awk '{print $1 "\n" $2}' $db_path'/string_network.txt' | sort -u > $db_path'/string_network_genes.txt'
 	echo 'Done :)'
 fi
 
 
 if [ "$module" == "1" ]; then
-	wf_execution=$current_dir/exec_degs2net
 	mkdir -p $wf_execution
 	execution_parameters=$current_dir/execution_parameters
 	datasets=`cut -f 1 $execution_parameters | tr "\n" ";"`
@@ -74,15 +81,20 @@ fi
 if [ "$module" == "3" ]; then
 	source ~soft_bio_267/initializes/init_python
 	source ~soft_bio_267/initializes/init_htmlreportR
-	def_res=$current_dir/results
 	datasets=`cut -f 1 $current_dir/execution_parameters`
-	create_metric_table $wf_execution/all_metrics dataset $def_res/all_metrics_table -c $def_res/corrupted_metrics_data
-	rm $def_res/all_rankings $def_res/all_samples
-	for dataset in DMD_fib; do
+	create_metric_table $wf_execution/all_metrics dataset $results_folder/all_metrics_table -c $results_folder/corrupted_metrics_data
+	rm $results_folder/all_rankings $results_folder/all_samples
+	for dataset in $datasets; do
 		ranked_file=$results_folder"/integrated/"$dataset"/ranked_genes_all_candidates"
-		awk "{print $dataset "\t" $0}" $ranked_file >> $def_res/all_rankings
+		awk -v dataset=$dataset '{print dataset "\t" $0}' $ranked_file >> $results_folder/all_rankings
 		sample_metrics=$results_folder"/datasets/"$dataset"/metric_table"
-		awk "{print $dataset "\t" $0}" $sample_metrics >> $def_res/all_samples
+
 	done
-	html_report.R -d "$def_res/all_metrics_table,$def_res/all_rankings,$def_res/all_samples" -t templates/degs2net.txt -o $def_res/degs2net.html
+	cat $wf_execution/netanalyzer_000*/DEG_list_tmp | sort -u > $results_folder/all_DEGs
+	grep -f $results_folder/all_DEGs $db_path'/string_network.txt' | awk '{print $1"-"$2"\t"$3}'> $results_folder/mapped_interactions
+	echo "$results_folder/datasets/*/files/metric_table_*"
+	echo "Command called:"
+	echo "html_report.R -d $results_folder/all_metrics_table,$results_folder/all_rankings,$results_folder/datasets/*/files/metric_table_*,$results_folder/mapped_interactions,$results_folder/datasets/ncRNA_annotated_merged -t templates/degs2net.txt -o $results_folder/degs2net.html"
+	html_report.R -d "$results_folder/all_metrics_table,$results_folder/all_rankings,$results_folder/datasets/*/files/metric_table_*,$results_folder/mapped_interactions,$results_folder/datasets/ncRNA_annotated_merged,$results_folder/datasets/top_genes_merged,$results_folder/datasets/ranked_clusters_merged,$results_folder/datasets/noncluster_ranked_top_genes_merged,$results_folder/datasets/cluster_genes_id_merged" -t templates/degs2net.txt -o $results_folder/degs2net.html
+	echo "Report written in $results_folder/degs2net.html"
 fi
