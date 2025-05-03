@@ -189,7 +189,7 @@ network_representation_[$datasets]){
 	sed -i '1s/^/seed\tENSEMBL_gene\n/' target_genes 
 	add_annotation.R -i target_genes -o target_genes_tmp -c 2 -I ENSEMBL
 	cut -f 1,3 target_genes_tmp | tail -n+2  > target_genes
-	sed '1s/^/Cluster_id\tENSEMBL_gene\n/' !subgraph_extraction_clustering_*!/discovered_clusters.txt > group_nodes
+	grep -wf cluster_reduction_ids discovered_clusters.txt | sed '1i Cluster_id\tENSEMBL_gene' > group_nodes
 	add_annotation.R -i group_nodes -o group_nodes_tmp -c 2 -I ENSEMBL
 	cut -f 1,3 group_nodes_tmp | tail -n+2  > group_nodes
 	rm group_nodes_tmp 
