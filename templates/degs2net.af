@@ -1,4 +1,4 @@
-%filter_node_list){
+filter_node_list){
 	source ~soft_bio_267/initializes/init_degenes_hunter
 	while read line || [[ -n $line ]]; do
 		dataset=`echo -e "$line" | cut -f 1`
@@ -31,7 +31,7 @@
     fi
 }
 
-%gather_expressed_genes){
+gather_expressed_genes){
 	source ~soft_bio_267/initializes/init_python
 	source ~soft_bio_267/initializes/init_degenes_hunter
 	#grep -vf filter_node_list)/final_expressed_list $db_path/string_network.txt > ./discarded_genes_network.txt
@@ -50,7 +50,7 @@
     fi
 }
 
-%degree_normalization){
+degree_normalization){
 	source ~soft_bio_267/initializes/init_python
 	resources: -m '60gb' -t '0-02:30:00'
 	echo -e "normalize_matrix ('adjacency_matrices',('gene','gene')) by='rows_cols'" > dsl
@@ -64,7 +64,7 @@
     fi
 }
 
-%get_embedding){
+get_embedding){
 	source ~soft_bio_267/initializes/init_python
 	resources: -m '500gb' -t '1-00:00:00'
 	?
@@ -133,7 +133,7 @@ subgraph_extraction_clustering_[$datasets]){
     fi
 }
 
-%cluster_prioritization_[$datasets]){
+cluster_prioritization_[$datasets]){
 	resources: -c 1 -t 0-00:59:59 -m '100gb'
 	source ~soft_bio_267/initializes/init_python
 	source ~soft_bio_267/initializes/init_degenes_hunter
@@ -154,7 +154,7 @@ subgraph_extraction_clustering_[$datasets]){
     fi
 }
 
-%non_cluster_prioritization_[$datasets]){
+non_cluster_prioritization_[$datasets]){
 	resources: -c 1 -t 0-00:59:59 -m '100gb'
 	source ~soft_bio_267/initializes/init_python
 	source ~soft_bio_267/initializes/init_degenes_hunter	
@@ -179,7 +179,7 @@ subgraph_extraction_clustering_[$datasets]){
 }
 
 
-%network_representation_[$datasets]){
+network_representation_[$datasets]){
 	resources: -c 1 -t 7-00:00:00 -m '150gb'
 	source ~soft_bio_267/initializes/init_python
 	source ~soft_bio_267/initializes/init_degenes_hunter
@@ -189,7 +189,7 @@ subgraph_extraction_clustering_[$datasets]){
 	sed -i '1s/^/seed\tENSEMBL_gene\n/' target_genes 
 	add_annotation.R -i target_genes -o target_genes_tmp -c 2 -I ENSEMBL
 	cut -f 1,3 target_genes_tmp | tail -n+2  > target_genes
-	sed '1s/^/Cluster_id\tENSEMBL_gene\n/' !subgraph_extraction_clustering_*!/discovered_clusters.txt > group_nodes
+	grep -wf cluster_reduction_ids discovered_clusters.txt | sed '1i Cluster_id\tENSEMBL_gene' > group_nodes
 	add_annotation.R -i group_nodes -o group_nodes_tmp -c 2 -I ENSEMBL
 	cut -f 1,3 group_nodes_tmp | tail -n+2  > group_nodes
 	rm group_nodes_tmp 
@@ -203,7 +203,7 @@ subgraph_extraction_clustering_[$datasets]){
     fi
 }
 
-%functional_analysis_[$datasets]){
+functional_analysis_[$datasets]){
 	resources: -c 16 -t 0-00:59:59 -m '60gb'
 	echo (*) > tracker
 	source ~soft_bio_267/initializes/init_degenes_hunter
