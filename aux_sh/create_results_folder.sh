@@ -28,6 +28,10 @@ do
 		if [ -s $execution_folder"/"$folder/"network_umap.html" ]
 		then
 			cp $execution_folder"/"$folder/network_umap.html $out_integrated
+		fi
+		if [ -s $execution_folder"/"$folder/functional_results/clusters_func_report.html ]
+		then
+			cp $execution_folder"/"$folder/functional_results/clusters_func_report.html $out_integrated
 	    fi
 	    if [ -s $execution_folder"/"$folder/"DEG_list" ]
 	    then
