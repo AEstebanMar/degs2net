@@ -145,7 +145,7 @@ cluster_prioritization_[$datasets]){
 	ranker -k get_embedding)/kernel.npy -n get_embedding)/kernel_rowIds --adj_matrix ./nodes_network_matrix.npy \
 										--seed_nodes !subgraph_extraction_clustering_*!/clusters_aggregated.txt \
 										-f disease_genes.txt --score2pvalue "logistic" --representation_seed_metric "fisher" 
-	sed '1i candidates\tscore\tnormalized_rank\trank\tuniq_rank\tseed_group' ranked_genes_all_candidates
+	sed '1i candidates\tscore\tnormalized_score\trank\tuniq_rank\tseed_group' ranked_genes_all_candidates
 	sed 's/$/\t(*)/g' ranked_genes_all_candidates > ranked_clusters
 	retVal=$?
     if [ $retVal -ne 0 ]; then
@@ -169,7 +169,7 @@ non_cluster_prioritization_[$datasets]){
 										--seed_nodes genes_not_clustered.txt \
 										-f disease_genes.txt --score2pvalue "logistic" --representation_seed_metric "fisher"
 	sort -k4 -g ranked_genes_all_candidates | head > top_genes_tmp
-	sed -i '1i candidates\tscore\tnormalized_rank\trank\tuniq_rank\tseed_group' top_genes_tmp
+	sed -i '1i candidates\tscore\tnormalized_score\trank\tuniq_rank\tseed_group' top_genes_tmp
 	add_annotation.R -i top_genes_tmp -o top_genes_annotated -c 6 -I ENSEMBL
 	tail -n+2 top_genes_annotated | sed 's/$/\t(*)/g' > noncluster_ranked_top_genes
     if [ $retVal -ne 0 ]; then
@@ -189,7 +189,7 @@ network_representation_[$datasets]){
 	sed -i '1s/^/seed\tENSEMBL_gene\n/' target_genes 
 	add_annotation.R -i target_genes -o target_genes_tmp -c 2 -I ENSEMBL
 	cut -f 1,3 target_genes_tmp | tail -n+2  > target_genes
-	grep -wf cluster_reduction_ids discovered_clusters.txt | sed '1i Cluster_id\tENSEMBL_gene' > group_nodes
+	grep -wf !subgraph_extraction_clustering_*!/cluster_reduction_ids !subgraph_extraction_clustering_*!/discovered_clusters.txt | sed '1i Cluster_id\tENSEMBL_gene' > group_nodes
 	add_annotation.R -i group_nodes -o group_nodes_tmp -c 2 -I ENSEMBL
 	cut -f 1,3 group_nodes_tmp | tail -n+2  > group_nodes
 	rm group_nodes_tmp 
