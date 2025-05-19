@@ -1,3 +1,0 @@
-export deg_paths=$current_dir/execution_parameters
-export pvalue_cutoff=0.1
-confidence=150
