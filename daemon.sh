@@ -80,7 +80,7 @@ fi
 
 if [ "$module" == "3" ]; then
 	source ~soft_bio_267/initializes/init_python
-	source ~soft_bio_267/initializes/init_htmlreportR
+	source ~soft_bio_267/initializes/init_R
 	datasets=`cut -f 1 $current_dir/execution_parameters`
 	create_metric_table $wf_execution/all_metrics dataset $results_folder/all_metrics_table -c $results_folder/corrupted_metrics_data
 	rm $results_folder/all_rankings $results_folder/all_samples
