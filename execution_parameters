@@ -1,4 +1,8 @@
-DMD_fib	/mnt2/fscratch/users/bio_267_uma/lhurtado/NGS_projects/DMD_fib/results/DEGenesHunter_results/120.ctl_vs_mut_1_5//Common_results/hunter_results_table.txt	ENSG00000198947
+DMD_myot	/mnt2/fscratch/users/bio_267_uma/lhurtado/NGS_projects/DMD_myot/results/DEGenesHunter_results/120.ctl_vs_mut_1_5//Common_results/hunter_results_table.txt	ENSG00000198947
 DMD_pcard	/mnt2/fscratch/users/bio_267_uma/lhurtado/NGS_projects/DMD_pcard/results/DEGenesHunter_results/control_vs_DMD_1_5//Common_results/hunter_results_table.txt	ENSG00000198947
 ALS_iN_C9ORF72	/mnt2/fscratch/users/bio_267_uma/lhurtado/NGS_projects/ALS_iN_C9ORF72/results/DEGenesHunter_results/control_vs_ALS_CYT/Common_results/hunter_results_table.txt	ENSG00000147894
 ALS_fib_FUS	/mnt2/fscratch/users/bio_267_uma/lhurtado/NGS_projects/ALS_fib_FUS/results/DEGenesHunter_results/control_vs_FUS/Common_results/hunter_results_table.txt	ENSG00000089280
+DMD_cardiac_fib	/mnt2/fscratch/users/bio_267_uma/lhurtado/NGS_projects/DMD_cardiac_fib/results/DEGenesHunter_results/ctrl_vs_DMD/Common_results/hunter_results_table.txt	ENSG00000198947
+DMD_myob	/mnt2/fscratch/users/bio_267_uma/lhurtado/NGS_projects/DMD_myob/results/DEGenesHunter_results/ctrl_vs_DMD_logFC1_5/Common_results/hunter_results_table.txt	ENSG00000198947
+LGMD_myob	/mnt2/fscratch/users/bio_267_uma/lhurtado/NGS_projects/LGMD_myob/results/DEGenesHunter_results/Ctrl_vs_LGMD_logfc2/Common_results/hunter_results_table.txt	ENSG00000064419
+LGMD_PBMC	/mnt2/fscratch/users/bio_267_uma/lhurtado/NGS_projects/LGMD_PBMC/results/DEGenesHunter_results/ctrl_vs_LGMD/Common_results/hunter_results_table.txt	ENSG00000064419
