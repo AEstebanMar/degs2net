@@ -51,7 +51,6 @@ end.rcode-->
 end.rcode-->
 
 <!--begin.rcode metric_table
-
 	cat(plotter$create_title("Dataset metrics", "dataset_metrics", hlevel = 2, indexable = TRUE, clickable = FALSE, t_id = NULL))
     
     cat(plotter$create_title("Sample metrics per dataset table", "sample_metrics_per_dataset_table", hlevel = 3, indexable = TRUE, clickable = FALSE, t_id = NULL))
