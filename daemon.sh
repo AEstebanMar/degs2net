@@ -61,7 +61,7 @@ if [ "$module" == "1" ]; then
     
     if [ "$mode" == "exec" ] ; then
 		echo Launching main workflow
-		AutoFlow -w $current_dir/templates/degs2net.af -m '10gb' -c 1 -n 'cal' -V $variables $aux_opt -o $wf_execution -e -L
+		AutoFlow -w $current_dir/templates/degs2net.af -V $variables $aux_opt -o $wf_execution -e -L
 	elif [ "$mode" == "check" ] ; then
 		flow_logger -w -e $wf_execution -r all
 	elif [ "$mode" == "rescue" ] ; then
@@ -80,10 +80,10 @@ fi
 
 if [ "$module" == "3" ]; then
 	source ~soft_bio_267/initializes/init_python
-	source ~soft_bio_267/initializes/init_htmlreportR
+	source ~soft_bio_267/initializes/init_R
 	datasets=`cut -f 1 $current_dir/execution_parameters`
 	create_metric_table $wf_execution/all_metrics dataset $results_folder/all_metrics_table -c $results_folder/corrupted_metrics_data
-	rm $results_folder/all_rankings $results_folder/all_samples
+	rm $results_folder/all_rankings 
 	for dataset in $datasets; do
 		ranked_file=$results_folder"/integrated/"$dataset"/ranked_genes_all_candidates"
 		awk -v dataset=$dataset '{print dataset "\t" $0}' $ranked_file >> $results_folder/all_rankings
