@@ -92,9 +92,10 @@ if [ "$module" == "3" ]; then
 	done
 	cat $wf_execution/netanalyzer_000*/DEG_list_tmp | sort -u > $results_folder/all_DEGs
 	grep -f $results_folder/all_DEGs $db_path'/string_network.txt' | awk '{print $1"-"$2"\t"$3}'> $results_folder/mapped_interactions
+	grep single_end_libraries ./config_daemon | tr '=' '\n' > single_end_libraries
 	echo "$results_folder/datasets/*/files/metric_table_*"
 	echo "Command called:"
 	echo "html_report.R -d $results_folder/all_metrics_table,$results_folder/all_rankings,$results_folder/datasets/*/files/metric_table_*,$results_folder/mapped_interactions,$results_folder/datasets/ncRNA_annotated_merged -t templates/degs2net.txt -o $results_folder/degs2net.html"
-	html_report.R -d "$results_folder/all_metrics_table,$results_folder/all_rankings,$results_folder/datasets/*/files/metric_table_*,$results_folder/mapped_interactions,$results_folder/datasets/ncRNA_annotated_merged,$results_folder/datasets/top_genes_merged,$results_folder/datasets/ranked_clusters_merged,$results_folder/datasets/noncluster_ranked_top_genes_merged,$results_folder/datasets/cluster_genes_id_merged" -t templates/degs2net.txt -o $results_folder/degs2net.html
+	html_report.R -d "$results_folder/all_metrics_table,$results_folder/all_rankings,$results_folder/datasets/*/files/metric_table_*,$results_folder/mapped_interactions,$results_folder/datasets/ncRNA_annotated_merged,$results_folder/datasets/top_genes_merged,$results_folder/datasets/ranked_clusters_merged,$results_folder/datasets/noncluster_ranked_top_genes_merged,$results_folder/datasets/cluster_genes_id_merged,$current_dir/single_end_libraries,$current_dir/execution_parameters" -t templates/degs2net.txt -o $results_folder/degs2net.html
 	echo "Report written in $results_folder/degs2net.html"
 fi
