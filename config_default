@@ -1,3 +1,4 @@
 export deg_paths=$current_dir/execution_parameters
 export pvalue_cutoff=0.1
 confidence=''  # confidence threshold
+single_end_libraries=dataset1;dataset2
