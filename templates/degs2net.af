@@ -84,11 +84,13 @@ subgraph_extraction_clustering_[$datasets]){
 	source ~soft_bio_267/initializes/init_degenes_hunter
 	echo (*) > tracker
 	input_files=`awk -F '\t' '$1 == "(*)" {print $0}' $execution_parameters | cut -f 2 | tr "," "\n"`
+	rm DEG_merged_list
 	for input_file in ${input_files[@]}; do
 		grep -w 'PREVALENT_DEG' $input_file | cut -f 1 >> DEG_merged_list
 	done
 	sort -u DEG_merged_list > DEG_list_tmp
 	sed -e 's/^/seed\t/' DEG_list_tmp > DEG_list
+	sed -e 's/$/\t(*)/' DEG_list_tmp > DEG_list_per_dataset
 	?
 	netanalyzer -i gather_expressed_genes)/nodes_network -f pair -o . -l genes -b louvain -G DEG_list \
 														 --seed 1 --output_build_clusters ./discovered_clusters_tmp.txt 2> log
@@ -178,10 +180,52 @@ non_cluster_prioritization_[$datasets]){
     fi
 }
 
+all_datasets_prioritization){
+	resources: -c 1 -t 0-00:59:59 -m '100gb'
+	source ~soft_bio_267/initializes/init_python
+	source ~soft_bio_267/initializes/init_degenes_hunter
+	input_files=`cut -f 2 $execution_parameters`	
+	rm DEG_merged_list
+	for input_file in ${input_files[@]}; do
+		grep -w 'PREVALENT_DEG' $input_file | cut -f 1 >> DEG_merged_list
+	done
+	sort -u DEG_merged_list | tr '\n' ',' | sed 's/,$//' | sed 's/^/seed_causal\t/'  > DEG_list
+	cat !subgraph_extraction_clustering_!/DEG_list_per_dataset > DEGs_per_dataset
+	cut -f 3 $execution_parameters | sort -u | tr '\n' ',' | sed 's/,$//' | sed 's/^/seed_causal\t/' > seed_genes
+	?
+	ranker -k get_embedding)/kernel.npy -n get_embedding)/kernel_rowIds --adj_matrix !cluster_prioritization_*!/nodes_network_matrix.npy \
+										--seed_nodes seed_genes \
+										-f DEG_list --score2pvalue "logistic" --representation_seed_metric "fisher"	
+	sort -k4 -g ranked_genes_all_candidates | head -n 10 > top_genes_tmp
+	sed -i '1i candidates\tscore\tnormalized_score\trank\tuniq_rank\tseed_group' top_genes_tmp
+	add_annotation.R -i top_genes_tmp -o top_genes_annotated -c 1 -I ENSEMBL
+	tail -n+2 top_genes_annotated > all_DEGs_ranked_top_genes_tmp
+	cut -f 1 all_DEGs_ranked_top_genes_tmp > top_genes_ENS
+	cut -f 1 $execution_parameters > dataset_names
+	cut -f 2 $execution_parameters > input_files
+	rm gene_values
+	for dataset in `cat dataset_names`
+	do
+        for line in `cat top_genes_ENS`
+        do
+                path=`grep $dataset input_files`
+                grep -w $line $path | awk ' {print $1, $2, $4}' | sed 's/$/\t'$dataset'/' | awk  '{print $1, $4, $2","$3}' | tr ' ' '\t' >> gene_values
+        done
+	done
+	create_metric_table gene_values ENSEMBL_GENE final_table_tmp
+	head -n 1 final_table_tmp | sed 's/ENSEMBL_GENE\t//' | sed 's/^/ENS_GENE\tSCORE\tNORMALIZED_SCORE\tRANK\tUNIQ_RANK\tSEED_GROUP\tPRIORITIZED_GENE\t/' > header
+	tail -n+2 final_table_tmp > final_table
+	merge_tabular all_DEGs_ranked_top_genes_tmp final_table > all_DEGs_ranked_top_genes_no_header
+	cat header all_DEGs_ranked_top_genes_no_header > all_DEGs_ranked_top_genes_header
+	awk 'BEGIN {FS=OFS="\t"} {print $7, $2, $3, $4, $8, $9, $10, $11, $12, $13, $14, $15}' all_DEGs_ranked_top_genes_header > all_DEGs_ranked_top_genes
+    if [ $retVal -ne 0 ]; then
+        echo ERROR: Last command exited with code $retVal
+        exit $retVal
+    fi		
+}
 
 network_representation_[$datasets]){
-	resources: -c 52 -t 7-00:00:00 -m '182gb' -n 'sd'
-	echo [cpu]
+	resources: -c 32 -t 7-00:00:00 -m '182gb' -n 'cal'
 	source ~soft_bio_267/initializes/init_python
 	source ~soft_bio_267/initializes/init_degenes_hunter
 	echo (*) > tracker
@@ -193,10 +237,12 @@ network_representation_[$datasets]){
 	grep -wf !subgraph_extraction_clustering_*!/cluster_reduction_ids !subgraph_extraction_clustering_*!/discovered_clusters.txt | sed '1i Cluster_id\tENSEMBL_gene' > group_nodes
 	add_annotation.R -i group_nodes -o group_nodes_tmp -c 2 -I ENSEMBL
 	cut -f 1,3 group_nodes_tmp | tail -n+2  > group_nodes
+	cut -f 2 group_nodes | sed 's/^/(*)\t/' > group_nodes_dataset
 	rm group_nodes_tmp 
+	export PYTHONHASHSEED=123456
 	LAYERS='gene,[A-Za-z0-9]'
 	?
-	net_explorer -i "string,gather_expressed_genes)/nodes_network_annotated" --seed_nodes target_genes -N --graph_options 'method=sigma2,width=1200px,height=900px,iterations=200' --embedding_proj "umap" -G group_nodes -g network_umap
+	net_explorer -i "string,gather_expressed_genes)/nodes_network_annotated" --seed_nodes target_genes -N -T 1 --graph_options 'method=sigma2,width=1200px,height=900px,iterations=200' --embedding_proj "umap" -G group_nodes -g network_umap
 	retVal=$?
     if [ $retVal -ne 0 ]; then
         echo ERROR: Last command exited with code $retVal
@@ -204,12 +250,30 @@ network_representation_[$datasets]){
     fi
 }
 
+whole_network_representation){
+	resources: -c 32 -t 7-00:00:00 -m '182gb' -n 'cal'
+	source ~soft_bio_267/initializes/init_python
+	source ~soft_bio_267/initializes/init_degenes_hunter
+	cut -f 3 $execution_parameters | sort -u | sed 's/^/seed\t/' > disease_genes_tmp
+	sed -i '1s/^/seed\tENSEMBL_gene\n/' disease_genes_tmp
+	add_annotation.R -i disease_genes_tmp -o disease_genes -c 2 -I ENSEMBL
+	cut -f 1,3 disease_genes | tail -n+2  > target_genes_tmp
+	aggregate_column_data -i target_genes_tmp -x 1 -a 2 -s ',' > target_genes
+	cat !network_representation_!/group_nodes_dataset > group_nodes_tmp
+	cut -f 1 $execution_parameters | awk '{print NR, $0}' OFS='\t' > dataset_dict
+	standard_name_replacer -i group_nodes_tmp -I dataset_dict -c 1 -f 2 -t 1 > group_nodes
+	export PYTHONHASHSEED=123456
+	LAYERS='gene,[A-Za-z0-9]'
+	?
+	net_explorer -i "string,gather_expressed_genes)/nodes_network_annotated" --seed_nodes target_genes -N -T 1 --graph_options 'method=sigma2,width=1200px,height=900px,iterations=200' --embedding_proj "umap" -G group_nodes -g network_all
+}
+
 functional_analysis_[$datasets]){
-	resources: -c 16 -t 0-00:59:59 -m '60gb'
+	resources: -c 16 -t 0-00:59:59 -m '60gb' -n 'cal'
 	echo (*) > tracker
 	source ~soft_bio_267/initializes/init_degenes_hunter
 	?
-	clusters_to_enrichment.R -i !subgraph_extraction_clustering_*!/clusters_aggregated.txt -w [cpu] -o functional_results -f MF,BP,CC,KEGG,Reactome -p $pvalue_cutoff -k ENSEMBL -O "Human"
+	clusters_to_enrichment.R -i !subgraph_extraction_clustering_*!/clusters_aggregated.txt -w [cpu] -o functional_results -f MF,BP,CC -p $pvalue_cutoff -k ENSEMBL -O "Human"
 	retVal=$?
     if [ $retVal -ne 0 ]; then
         echo ERROR: Last command exited with code $retVal
