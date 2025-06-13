@@ -52,8 +52,16 @@ do
 	    if [ -s $execution_folder"/"$folder/"selected_cluster_genes" ]
 	    then
 	    	cat $execution_folder"/"$folder/selected_cluster_genes >> $results_folder/datasets/cluster_genes_id_merged
-	    fi
+	    fi    
 	fi
+	    if [ -s $execution_folder"/"$folder/"all_DEGs_ranked_top_genes" ]
+	    then
+	    	cp $execution_folder"/"$folder/all_DEGs_ranked_top_genes $results_folder/integrated/all_DEGs_ranked_top_genes	
+	    fi	
+	   	if [ -s $execution_folder"/"$folder/"network_all.html" ]
+	    then
+	    	cp $execution_folder"/"$folder/network_all.html $results_folder/integrated
+	    fi	
 done
 
 for dataset in $dataset_names
