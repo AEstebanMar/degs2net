@@ -1,2 +1,2 @@
-dataset_name;path/to/hunter_results_table.txt;gene1,gene2,gene3
-dataset_2_name;path/to/hunter_results_table_2.txt;gene1,gene3,gene4
+dataset_name	path/to/hunter_results_table.txt	gene1,gene2,gene3
+dataset_2_name	path/to/hunter_results_table_2.txt	gene1,gene3,gene4

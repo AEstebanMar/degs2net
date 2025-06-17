@@ -20,9 +20,8 @@ for(dataset in unique(cluster_genes_table$DATASET)) {
 
 plotter$hash_vars$clusters_boxplot <- do.call(rbind, clusters_boxplot)
 
-single_end_libraries <- plotter$hash_vars$single_end_libraries[-1, , drop = FALSE]
-colnames(single_end_libraries) <- "library"
-single_end_libraries <- strsplit(single_end_libraries$library, ";")[[1]]
+single_end_libraries <- plotter$hash_vars$single_end_libraries[[1]]
+single_end_libraries <- strsplit(single_end_libraries, ";")[[1]]
 
 fixed_metric_tables <- list()
 for(ID in paste0("metric_table_", single_end_libraries)) {
@@ -37,14 +36,13 @@ for(ID in paste0("metric_table_", single_end_libraries)) {
     colnames(metric_table) <- paste0("V", 1:ncol(metric_table))
     plotter$hash_vars[[ID]] <- metric_table
 }
-
 exec_parameters <- plotter$hash_vars$execution_parameters
 dataset_ids <- exec_parameters[ , 1, drop = FALSE]
 dataset_ids <- paste0("metric_table_", dataset_ids[, 1])
 
-plotter$merge_hashed_tables(dataset_ids, from_id_name = "dataset", target_id = "merged_dataset_metrics")
-
-plotter$hash_vars$merged_dataset_metrics <- plotter$hash_vars$merged_dataset_metrics[, c(1, 50, 52, 79)]
+plotter$merge_hashed_tables(dataset_ids, from_id_name = "dataset", target_id = "merged_dataset_metrics", add_colnames = TRUE)
+plotter$hash_vars$merged_dataset_metrics$dataset <- gsub("metric_table_", "", plotter$hash_vars$merged_dataset_metrics$dataset)
+plotter$hash_vars$merged_dataset_metrics <-plotter$hash_vars$merged_dataset_metrics[, c(1, 50, 52, 79)]
 plotter$hash_vars$merged_dataset_metrics <- data.frame(lapply(plotter$hash_vars$merged_dataset_metrics, function(data) gsub("%", "", data)))
 
 end.rcode-->
@@ -52,37 +50,47 @@ end.rcode-->
 
 
 <!--begin.rcode title
-	cat(plotter$create_title("<b>PRIORITIZATION</b>", "prioritization", hlevel=1, indexable = FALSE, clickable = FALSE, t_id = NULL))
+    cat(plotter$create_title("<b>PRIORITIZATION</b>", "prioritization", hlevel=1, indexable = FALSE, clickable = FALSE, t_id = NULL))
 end.rcode-->
 
 <!--begin.rcode metric_table
-	cat(plotter$create_title("Dataset metrics", "dataset_metrics", hlevel = 2, indexable = TRUE, clickable = FALSE, t_id = NULL))
+    cat(plotter$create_title("Dataset metrics", "dataset_metrics", hlevel = 2, indexable = TRUE, clickable = FALSE, t_id = NULL))
     cat(plotter$create_title("Sample metrics per dataset table", "sample_metrics_per_dataset_table", hlevel = 3, indexable = TRUE, clickable = FALSE, t_id = NULL))
     cat(plotter$prettify_div("<p> Percentage of reads that were discarded due to either multimapping or being too short per dataset. </p>", preset = "magic"))
     cat(plotter$prettify_div(plotter$table(list(id = "merged_dataset_metrics", header = NULL, row_names = FALSE, table_rownames = FALSE, styled = "dt", text="dynamic")), preset = "magic"))
     cat(plotter$create_title("Too many loci vs unmapped too short scatterplots", "unmapped_scatter", hlevel = 3, indexable = TRUE, clickable = FALSE, t_id = NULL))
     cat(plotter$prettify_div("<p> Individual scatterplots for each dataset that represents the percentages of samples that presented multimapping vs those of the samples that were too short. </p>", preset ="magic"))
     merged_dataset_metrics <- plotter$hash_vars$merged_dataset_metrics
+    pretty_string <- vector(mode = "list", length = length(unique(merged_dataset_metrics$dataset)))
+    names(pretty_string) <- unique(merged_dataset_metrics$dataset)
     for(dataset in unique(merged_dataset_metrics$dataset)) {
         title <- strsplit(dataset, "metric_table_")[[1]][2]
         plotter$hash_vars$scatter_metrics <- merged_dataset_metrics[merged_dataset_metrics$dataset == dataset, -c(1, 4), drop = FALSE]
-        cat(plotter$prettify_div(plotter$scatter2D(list(id = "scatter_metrics", header = NULL, row_names = FALSE,
-                             text = FALSE, title = title, x_label = "too many loci (%)", y_label = "too short (%)")), preset = "magic"))
+        # cat(plotter$prettify_div(plotter$scatter2D(list(id = "scatter_metrics", header = NULL, row_names = FALSE, 
+        #                      text = FALSE, title = title, x_label = "too many loci (%)", y_label = "too short (%)")), preset = "magic"))
+        pretty_string[[dataset]] <- plotter$scatter2D(list(id = "scatter_metrics", header = NULL, row_names = FALSE, width = "400px", height= '400px',
+                             text = FALSE, title = title, x_label = "too many loci (%)", y_label = "too short (%)"))
     }
+    pretty_string <- paste(pretty_string, collapse = "\n\n")
+    cat(plotter$prettify_div(plotter$prettify_div(pretty_string, width = '1600px'), overflow = "hidden"))
     cat(plotter$create_title("All metrics table", "all_metrics_table", hlevel = 3, indexable = TRUE, clickable = FALSE, t_id = NULL))
     cat(plotter$prettify_div("<p> Summary of the essential metrics from each dataset, including: the number of expressed genes (<code>ngenes</code>); the number of differentially expressed genes (<code>nDEGs</code>), over-expressed genes (<code>nover</code>), and under-expressed genes (<code>nunder</code>); the number of genes not mapped to the STRING interactome (<code>int_miss_genes</code>); the number of clusters of differentially expressed genes (<code>nclusters</code>); the total number of DEGs mapped to said clusters (<code>genes_in_clusters</code>); the number of unmapped DEGs (<code>nunmapped_DEGs</code>), and specifically, the number of unmapped DEGs that were coding RNAs (<code>nunmapped_genes</code>), non-coding RNAs (<code>nunmapped_ncRNA</code>), and pseudogenes (<code>nunmapped_pseudo</code>). </p>", preset ="magic"))
-    cat(plotter$prettify_div(plotter$table(list(id = "all_metrics_table", header = TRUE, row_names = TRUE, styled = "dt")), preset = "magic"))   
+    cat(plotter$prettify_div(plotter$table(list(id = "all_metrics_table", header = TRUE, row_names = TRUE, styled = "dt", rownames_col = "dataset")), preset = "magic"))   
 end.rcode-->
 
 <!--begin.rcode network_metrics
     cat(plotter$create_title("Network metrics", "network_metrics", hlevel = 2, indexable = TRUE, clickable = FALSE, t_id = NULL)) 
     cat(plotter$prettify_div("<p> STRING “Experimental” channel scores distribution. </p>", preset = "magic"))
-    cat(plotter$prettify_div(plotter$scatter2D(list(id = "scores_abundance", title = "Scores abundance", row_names = FALSE, header = FALSE,
+    scatter_density_grid <- list()
+    scatter_density_grid$scatter <- plotter$scatter2D(list(id = "scores_abundance", title = "Scores abundance", row_names = FALSE, header = FALSE,
                                x_label = "Interaction score", y_label = "Frequency", alpha = 0.3, theme = "tableau",
-                               text = 1)), preset = "magic"))
+                               text = 1, width = "400px", height = "400px"))
     colnames(plotter$hash_vars$mapped_interactions) <- c("Pair", "Score")
-    cat(plotter$prettify_div(plotter$density(list(id = "mapped_interactions", fields= 2, title = "Scores density plot",
-        header = NULL,  x_label = "Score", text = 1, row_names = FALSE, fillDensity = TRUE, median = TRUE)), preset = "magic"))
+    scatter_density_grid$density <- plotter$density(list(id = "mapped_interactions", fields= 2, title = "Scores density plot",
+        header = NULL,  x_label = "Score", text = 1, row_names = FALSE, fillDensity = TRUE, median = TRUE, width = "400px", height = "400px"))
+    scatter_density_grid <- paste(scatter_density_grid, collapse ="\n\n")
+    cat(plotter$prettify_div(plotter$prettify_div(scatter_density_grid, width = "800px"), overflow = "hidden"))
+
     cat(plotter$create_title("Non-coding RNA fragments detected in DEA", "non_coding", hlevel = 2, indexable = TRUE, clickable = FALSE, t_id = NULL)) 
     cat(plotter$prettify_div("<p> Differentially expressed genes (DEGs) that did not map against the STRING interactome network for each dataset, including their Log<sub>2</sub>FC. </p>", preset = "magic"))
     cat(plotter$prettify_div(plotter$table(list(id = "ncRNA_annotated_merged", header = TRUE, row_names = FALSE, styled = "dt", table_rownames = FALSE, text = "dynamic")), preset = "magic"))
@@ -96,8 +104,11 @@ end.rcode-->
     cat("<p> Clustered DEG prioritization results per dataset, showing the causal genes for the disease along with their corresponding clustering scores, normalized scores (the closer to zero, the closer the causal gene is to the cluster), prioritization ranks, and cluster IDs (<code>seed_group</code>). </p>")
     cat(plotter$prettify_div(plotter$table(list(id = "ranked_clusters_merged", header = TRUE, row_names = FALSE, styled = "dt", table_rownames = FALSE, text = "dynamic")), preset = "magic"))
     cat(plotter$create_title("Non-clusterized gene prioritization", "non_cluster_top_ranked", hlevel = 2, indexable = TRUE, clickable = FALSE, t_id = NULL)) 
-    cat(plotter$prettify_div("<p> Ranking of isolated DEGs that were filtered out in the network clustering process per dataset, showing the causal genes for the disease in the first column, followed by the score and normalized score calculated for each DEG based on their proximity to the causal gene (the closer to zero, the closer the causal gene is to the cluster).  </p>", preset = "magic"))
+    cat(plotter$prettify_div("<p> Ranking of the top 10 isolated DEGs that were filtered out in the network clustering process per dataset, showing the causal genes for the disease in the first column, followed by the score and normalized score calculated for each DEG based on their proximity to the respective causal gene (the closer to zero, the closer the causal gene is to the DEG). </p>", preset = "magic"))
     cat(plotter$prettify_div(plotter$table(list(id = "noncluster_ranked_top_genes_merged", header = TRUE, row_names = FALSE, styled = "dt", table_rownames = FALSE, text = "dynamic")), preset = "magic"))
+    cat(plotter$create_title("Average gene prioritization", "all_top_ranked", hlevel = 2, indexable = TRUE, clickable = FALSE, t_id = NULL))
+    cat(plotter$prettify_div("<p> Ranking of the average proximity of each DEG to all of the causal genes (<i>DMD, C9ORF72, FUS and TNPO3</i>) showing the top 10 DEGs in the first column using their gene symbols for clarity, followed by the score and normalized score calculated for each one based on their proximity to all causal genes (the closer to zero, the closer the average proximity is to all causal genes). Rank refers to their position based on their proximity compared to the whole genome. The last 8 columns show the values of logFC and pvalue for each gene in each dataset, separated by a comma. NA: the gene did not pass the expression filter in that dataset. </p>", preset = "magic"))
+    cat(plotter$prettify_div(plotter$table(list(id="all_DEGs_ranked_top_genes", header = TRUE, row_names = FALSE, styled = "dt", table_rownames = FALSE, text = "dynamic")), preset = "magic"))
     cat(plotter$create_title("Genes per cluster", "genes_per_cluster", hlevel = 2, indexable = TRUE, clickable = FALSE, t_id = NULL))
     cat(plotter$prettify_div("<p> Cluster IDs, including the number of genes in each cluster and a list of their corresponding DEGs.  </p>", preset = "magic"))
     cat(plotter$prettify_div(plotter$table(list(id = "cluster_genes_id_merged", header = TRUE, row_names = FALSE, fields = c(1, 4, 2, 3), styled = "dt", table_rownames = FALSE,
