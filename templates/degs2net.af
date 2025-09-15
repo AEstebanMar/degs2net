@@ -34,7 +34,6 @@ filter_node_list){
 gather_expressed_genes){
 	source ~soft_bio_267/initializes/init_python
 	source ~soft_bio_267/initializes/init_degenes_hunter
-	#grep -vf filter_node_list)/final_expressed_list $db_path/string_network.txt > ./discarded_genes_network.txt
 	grep -vf filter_node_list)/final_expressed_list $db_path/string_network.txt | cut -f 1,2 | tr '\t' '\n'| sort -u > ./discarded_genes.txt
 	?
 	netanalyzer -i $db_path/string_network.txt -f pair -l main -d ./discarded_genes.txt --filter_connected_components 5 --output_network ./nodes_network
@@ -64,7 +63,7 @@ degree_normalization){
 
 get_cluster_embedding_[$datasets]){
 	source ~soft_bio_267/initializes/init_python
-	resources: -m '500gb' -t '1-00:00:00'
+	resources: -m '500gb' -t '1-00:00:00' -n 'cal'
 	input_files=`awk -F '\t' '$1 == "(*)" {print $0}' $execution_parameters | cut -f 2 | tr "," "\n"`
 	rm DEG_merged_list
 	for input_file in ${input_files[@]}; do
@@ -74,7 +73,9 @@ get_cluster_embedding_[$datasets]){
 	?
 	netanalyzer -i degree_normalization)/adjacency_matrix.npy -n degree_normalization)/adjacency_matrix_rowIds.lst \
 	 -f bin -k "node2vec" -K embedding_coords --both_repre_formats -l 'genes' -u 'genes' \
-	--embedding_add_options "'window':10,'num_walks':10,'walk_length':100,'dimensions':128" --embedding_coords --cluster_embedding "HDBSCAN" -r $DEG_list
+	--embedding_add_options "'window':10,'num_walks':10,'walk_length':100,'dimensions':128" --embedding_coords --cluster_embedding "HDBSCAN" -r $DEG_list --cluster_embedding_add_options "'min_cluster_size': 2,'min_samples': 2"
+	aggregate_column_data -i groups_from_embedding -x 1 -a 2 -s ',' > groups_aggregated.txt
+	rm DEG_merged_list
 	retVal=$?
     if [ $retVal -ne 0 ]; then
         echo ERROR: Last command exited with code $retVal
@@ -84,7 +85,7 @@ get_cluster_embedding_[$datasets]){
 
 get_embedding){
 	source ~soft_bio_267/initializes/init_python
-	resources: -m '500gb' -t '1-00:00:00'
+	resources: -m '500gb' -t '1-00:00:00' -n 'cal'
 	?
 	netanalyzer -i degree_normalization)/adjacency_matrix.npy -n degree_normalization)/adjacency_matrix_rowIds.lst \
 	 -f bin -k "node2vec" -K kernel --both_repre_formats -z -l 'genes' -u 'genes' \
@@ -243,11 +244,34 @@ all_datasets_prioritization){
     fi		
 }
 
+
+# %ABCC6_prioritization{
+# 	resources: -c 1 -t 0-00:59:59 -m '100gb' -n 'cal'
+# 	source ~soft_bio_267/initializes/init_python
+# 	source ~soft_bio_267/initializes/init_degenes_hunter
+
+# 	echo 'ENSG00000091262' | sed 's/^/seed_causal\t/' > seed_ABCC6
+# 	input_files=`cut -f 2 $execution_parameters`	
+# 	rm DEG_merged_list
+# 	for input_file in ${input_files[@]}; do
+# 		grep -w 'PREVALENT_DEG' $input_file | cut -f 1 >> DEG_merged_list
+# 	done
+# 	sort -u DEG_merged_list | tr '\n' ',' > DEG_list
+# 	cut -f 3 $execution_parameters | sort -u | tr '\n' ',' | sed 's/,$//' > causal_genes
+# 	cat DEG_list causal_genes | sed 's/^/seed_causal\t/' > filtered_genes
+# 	?
+# 	ranker -k get_embedding)/kernel.npy -n get_embedding)/kernel_rowIds --adj_matrix !cluster_prioritization_*!/nodes_network_matrix.npy \
+# 										--seed_nodes seed_ABCC6 \
+# 										-f DEG_list --score2pvalue "logistic" --representation_seed_metric "fisher"	
+
+# }
+
+
 ABCC6_prioritization){
 	resources: -c 1 -t 0-00:59:59 -m '100gb' -n 'cal'
 	source ~soft_bio_267/initializes/init_python
 	source ~soft_bio_267/initializes/init_degenes_hunter
-	echo 'ENSG00000091262' > seed_ABCC6
+	echo 'ENSG00000091262' | sed 's/^/seed_causal\t/' > seed_ABCC6
 	input_files=`cut -f 2 $execution_parameters`	
 	rm DEG_merged_list
 	for input_file in ${input_files[@]}; do
@@ -306,8 +330,41 @@ network_representation_[$datasets]){
 	export PYTHONHASHSEED=123456
 	LAYERS='gene,[A-Za-z0-9]'
 	?
-	net_explorer --seed $PYTHONHASHSEED -i "string,gather_expressed_genes)/nodes_network_annotated" --seed_nodes target_genes -N -T 1 --graph_options 'method=sigma2,width=1200px,height=900px,iterations=200,style=safe' --embedding_proj "umap" -G group_nodes -g network_umap_SAFE &>nt_umap_log_SAFE & 
-	net_explorer --seed $PYTHONHASHSEED -i "string,gather_expressed_genes)/nodes_network_annotated" --seed_nodes target_genes -N -T 1 --graph_options 'method=sigma2,width=1200px,height=900px,iterations=200' --embedding_proj "umap" -G group_nodes -g network_umap &>nt_umap_log & 
+	net_explorer --seed $PYTHONHASHSEED -i "string,gather_expressed_genes)/nodes_network_annotated" --seed_nodes target_genes \
+	-N -T 1 --graph_options 'method=sigma2,width=1200px,height=900px,iterations=200,style=safe' --embedding_proj "umap" -G group_nodes -g network_umap_SAFE &>nt_umap_log_SAFE & 
+	net_explorer --seed $PYTHONHASHSEED -i "string,gather_expressed_genes)/nodes_network_annotated" --seed_nodes target_genes \
+	-N -T 1 --graph_options 'method=sigma2,width=1200px,height=900px,iterations=200' --embedding_proj "umap" -G group_nodes -g network_umap &>nt_umap_log & 
+	wait
+	retVal=$?
+    if [ $retVal -ne 0 ]; then
+        echo ERROR: Last command exited with code $retVal
+        exit $retVal
+    fi
+}
+
+
+network_emb_coords_representation_[$datasets]){
+	resources: -c 32 -t 7-00:00:00 -m '182gb' -n 'cal'
+	source ~soft_bio_267/initializes/init_python
+	source ~soft_bio_267/initializes/init_degenes_hunter
+	echo (*) > tracker
+	awk -F '\t' '$1 == "(*)" {print $0}' $execution_parameters | cut -f 3 > target_genes
+	sed -i -e 's/^/seed\t/' target_genes
+	sed -i '1s/^/seed\tENSEMBL_gene\n/' target_genes 
+	add_annotation.R -i target_genes -o target_genes_tmp -c 2 -I ENSEMBL
+	cut -f 1,3 target_genes_tmp | tail -n+2  > target_genes
+	sed '1i Cluster_id\tENSEMBL_gene' !get_cluster_embedding_*!/groups_from_embedding > groups_from_embedding
+	add_annotation.R -i groups_from_embedding -o group_nodes_tmp -c 2 -I ENSEMBL
+	cut -f 1,3 group_nodes_tmp | tail -n+2  > group_nodes
+	cut -f 2 group_nodes | sed 's/^/(*)\t/' > group_nodes_dataset
+	rm group_nodes_tmp 
+	export PYTHONHASHSEED=123456
+	LAYERS='gene,[A-Za-z0-9]'
+	?
+	net_explorer --seed $PYTHONHASHSEED -i "string,gather_expressed_genes)/nodes_network_annotated" --seed_nodes target_genes \
+	-N -T 1 --graph_options 'method=sigma2,width=1200px,height=900px,iterations=200,style=safe' --embedding_proj "umap" -G group_nodes -g network_umap_SAFE &>nt_umap_log_SAFE & 
+	net_explorer --seed $PYTHONHASHSEED -i "string,gather_expressed_genes)/nodes_network_annotated" --seed_nodes target_genes \
+	-N -T 1 --graph_options 'method=sigma2,width=1200px,height=900px,iterations=200' --embedding_proj "umap" -G group_nodes -g network_umap &>nt_umap_log & 
 	wait
 	retVal=$?
     if [ $retVal -ne 0 ]; then
@@ -320,19 +377,23 @@ whole_network_representation){
 	resources: -c 32 -t 7-00:00:00 -m '182gb' -n 'cal'
 	source ~soft_bio_267/initializes/init_python
 	source ~soft_bio_267/initializes/init_degenes_hunter
+	source ~soft_bio_267/initializes/init_R45
 	cut -f 3 $execution_parameters | sort -u | sed 's/^/seed\t/' > disease_genes_tmp
 	sed -i '1s/^/seed\tENSEMBL_gene\n/' disease_genes_tmp
 	add_annotation.R -i disease_genes_tmp -o disease_genes -c 2 -I ENSEMBL
 	cut -f 1,3 disease_genes | tail -n+2  > target_genes_tmp
 	aggregate_column_data -i target_genes_tmp -x 1 -a 2 -s ',' > target_genes
+	target_genes=`cut -f 2 target_genes`
 	cat !network_representation_!/group_nodes_dataset > group_nodes_tmp
 	cut -f 1 $execution_parameters | awk '{print NR, $0}' OFS='\t' > dataset_dict
 	standard_name_replacer -i group_nodes_tmp -I dataset_dict -c 1 -f 2 -t 1 > group_nodes
 	export PYTHONHASHSEED=123456
 	LAYERS='gene,[A-Za-z0-9]'
 	?
-	netanalyzer -i gather_expressed_genes)"/nodes_network_annotated" -l $LAYERS -g network_all_SAFE --graph_options 'method=sigma2,width=1200px,height=900px,iterations=200,style=safe' -G group_nodes -r target_genes &>network_log_SAFE &
-	netanalyzer -i gather_expressed_genes)"/nodes_network_annotated" -l $LAYERS -g network_all --graph_options 'method=sigma2,width=1200px,height=900px,iterations=200' -G group_nodes -r target_genes &>network_log &
+	netanalyzer -i gather_expressed_genes)"/nodes_network_annotated" -l $LAYERS -g network_all_SAFE \
+	--graph_options 'method=sigma2,width=1200px,height=900px,iterations=200,style=safe' -G group_nodes -r $target_genes &>network_log_SAFE &
+	netanalyzer -i gather_expressed_genes)"/nodes_network_annotated" -l $LAYERS -g network_all \
+	--graph_options 'method=sigma2,width=1200px,height=900px,iterations=200' -G group_nodes -r $target_genes &>network_log &
 	wait
 	retVal=$?
     if [ $retVal -ne 0 ]; then
@@ -345,21 +406,22 @@ ABCC6_network_representation){
 	resources: -c 32 -t 7-00:00:00 -m '182gb' -n 'cal'
 	source ~soft_bio_267/initializes/init_python
 	source ~soft_bio_267/initializes/init_degenes_hunter
-	echo 'ENSG00000091262' > seed_ABCC6
 	cut -f 3 $execution_parameters | sort -u | sed 's/^/seed\t/' > disease_genes_tmp
 	sed -i '1s/^/seed\tENSEMBL_gene\n/' disease_genes_tmp
 	add_annotation.R -i disease_genes_tmp -o disease_genes -c 2 -I ENSEMBL
 	cut -f 1,3 disease_genes | tail -n+2  > target_genes_tmp
 	aggregate_column_data -i target_genes_tmp -x 1 -a 2 -s ',' > target_genes_noABCC6
-	cat target_genes_noABCC6 seed_ABCC6 > target_genes
+	target_genes=`cut -f 2 target_genes_noABCC6 | sed 's/$/,ABCC6/'`
 	cat !network_representation_!/group_nodes_dataset > group_nodes_tmp
 	cut -f 1 $execution_parameters | awk '{print NR, $0}' OFS='\t' > dataset_dict
 	standard_name_replacer -i group_nodes_tmp -I dataset_dict -c 1 -f 2 -t 1 > group_nodes
 	export PYTHONHASHSEED=123456
 	LAYERS='gene,[A-Za-z0-9]'
 	?
-	netanalyzer -i gather_expressed_genes)"/nodes_network_annotated" -l $LAYERS -g network_all_SAFE --graph_options 'method=sigma2,width=1200px,height=900px,iterations=200,style=safe' -G group_nodes -r target_genes &>network_log_SAFE &
-	netanalyzer -i gather_expressed_genes)"/nodes_network_annotated" -l $LAYERS -g network_all --graph_options 'method=sigma2,width=1200px,height=900px,iterations=200' -G group_nodes -r target_genes &>network_log &
+	netanalyzer -i gather_expressed_genes)"/nodes_network_annotated" -l $LAYERS -g network_all_SAFE \
+	--graph_options 'method=sigma2,width=1200px,height=900px,iterations=200,style=safe' -G group_nodes -r $target_genes &>network_log_SAFE &
+	netanalyzer -i gather_expressed_genes)"/nodes_network_annotated" -l $LAYERS -g network_all \
+	--graph_options 'method=sigma2,width=1200px,height=900px,iterations=200' -G group_nodes -r $target_genes &>network_log &
 	wait
     if [ $retVal -ne 0 ]; then
         echo ERROR: Last command exited with code $retVal
@@ -379,6 +441,21 @@ functional_analysis_[$datasets]){
         exit $retVal
     fi
 }
+
+functional_emb_coords_analysis_[$datasets]){
+	resources: -c 16 -t 0-00:59:59 -m '60gb' -n 'cal'
+	echo (*) > tracker
+	source ~soft_bio_267/initializes/init_degenes_hunter
+	source ~soft_bio_267/initializes/init_R45
+	?
+	clusters_to_enrichment.R -i !get_cluster_embedding_*!/groups_aggregated.txt -w [cpu] -o functional_results -f MF,BP,CC -p $pvalue_cutoff -k ENSEMBL -O "Human"
+	retVal=$?
+    if [ $retVal -ne 0 ]; then
+        echo ERROR: Last command exited with code $retVal
+        exit $retVal
+    fi
+}
+
 
 DEGs_per_dataset_functional){
 	resources: -c 16 -t 0-00:59:59 -m '60gb' -n 'cal'
