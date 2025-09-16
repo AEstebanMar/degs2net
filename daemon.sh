@@ -61,7 +61,7 @@ if [ "$module" == "1" ]; then
     
     if [ "$mode" == "exec" ] ; then
 		echo Launching main workflow
-		AutoFlow -w $current_dir/templates/degs2net.af -V $variables $aux_opt -o $wf_execution -e -L
+		AutoFlow -w $current_dir/templates/degs2net.af -V $variables $aux_opt -o $wf_execution -e -L -n 'cal'
 	elif [ "$mode" == "check" ] ; then
 		flow_logger -w -e $wf_execution -r all
 	elif [ "$mode" == "rescue" ] ; then
