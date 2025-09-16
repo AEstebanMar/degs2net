@@ -245,45 +245,24 @@ all_datasets_prioritization){
 }
 
 
-# %ABCC6_prioritization{
-# 	resources: -c 1 -t 0-00:59:59 -m '100gb' -n 'cal'
-# 	source ~soft_bio_267/initializes/init_python
-# 	source ~soft_bio_267/initializes/init_degenes_hunter
-
-# 	echo 'ENSG00000091262' | sed 's/^/seed_causal\t/' > seed_ABCC6
-# 	input_files=`cut -f 2 $execution_parameters`	
-# 	rm DEG_merged_list
-# 	for input_file in ${input_files[@]}; do
-# 		grep -w 'PREVALENT_DEG' $input_file | cut -f 1 >> DEG_merged_list
-# 	done
-# 	sort -u DEG_merged_list | tr '\n' ',' > DEG_list
-# 	cut -f 3 $execution_parameters | sort -u | tr '\n' ',' | sed 's/,$//' > causal_genes
-# 	cat DEG_list causal_genes | sed 's/^/seed_causal\t/' > filtered_genes
-# 	?
-# 	ranker -k get_embedding)/kernel.npy -n get_embedding)/kernel_rowIds --adj_matrix !cluster_prioritization_*!/nodes_network_matrix.npy \
-# 										--seed_nodes seed_ABCC6 \
-# 										-f DEG_list --score2pvalue "logistic" --representation_seed_metric "fisher"	
-
-# }
-
-
 ABCC6_prioritization){
 	resources: -c 1 -t 0-00:59:59 -m '100gb' -n 'cal'
 	source ~soft_bio_267/initializes/init_python
 	source ~soft_bio_267/initializes/init_degenes_hunter
+
 	echo 'ENSG00000091262' | sed 's/^/seed_causal\t/' > seed_ABCC6
 	input_files=`cut -f 2 $execution_parameters`	
 	rm DEG_merged_list
 	for input_file in ${input_files[@]}; do
 		grep -w 'PREVALENT_DEG' $input_file | cut -f 1 >> DEG_merged_list
 	done
-	sort -u DEG_merged_list | tr '\n' ',' | sed 's/,$//' | sed 's/^/seed_causal\t/'  > DEG_list
-	cut -f 3 $execution_parameters | sort -u | tr '\n' ',' | sed 's/^/seed_causal\t/' > causal_genes
-	cat causal_genes seed_ABCC6 > seed_genes
+	sort -u DEG_merged_list | tr '\n' ',' > DEG_list
+	cut -f 3 $execution_parameters | sort -u | tr '\n' ',' | sed 's/,$//' > causal_genes
+	cat DEG_list causal_genes | sed 's/^/seed_causal\t/' > filtered_genes
 	?
 	ranker -k get_embedding)/kernel.npy -n get_embedding)/kernel_rowIds --adj_matrix !cluster_prioritization_*!/nodes_network_matrix.npy \
-										--seed_nodes seed_genes \
-										-f DEG_list --score2pvalue "logistic" --representation_seed_metric "fisher"	
+										--seed_nodes seed_ABCC6 \
+										-f filtered_genes --score2pvalue "logistic" --representation_seed_metric "fisher"	
 	sort -k4 -g ranked_genes_all_candidates | head -n 10 > top_genes_tmp
 	sed -i '1i candidates\tscore\tnormalized_score\trank\tuniq_rank\tseed_group' top_genes_tmp
 	add_annotation.R -i top_genes_tmp -o top_genes_annotated -c 1 -I ENSEMBL
