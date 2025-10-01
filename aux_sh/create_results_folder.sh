@@ -49,9 +49,9 @@ do
 	    then
 	    	cat $execution_folder"/"$folder/noncluster_ranked_top_genes >> $results_folder/datasets/noncluster_ranked_top_genes_merged
 	    fi
-	    if [ -s $execution_folder"/"$folder/"selected_cluster_genes" ]
+	    if [ -s $execution_folder"/"$folder/"cluster_genes" ]
 	    then
-	    	cat $execution_folder"/"$folder/selected_cluster_genes >> $results_folder/datasets/cluster_genes_id_merged
+	    	cat $execution_folder"/"$folder/cluster_genes >> $results_folder/datasets/cluster_genes_id_merged
 	    fi    
 	fi
 	    if [ -s $execution_folder"/"$folder/"all_DEGs_ranked_top_genes" ]
