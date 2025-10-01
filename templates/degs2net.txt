@@ -1,5 +1,4 @@
 <!--begin.rcode Setup
-
 plotter$hash_vars$scores_abundance <- data.frame(table(plotter$hash_vars$mapped_interactions[,2]))
 genes <- plotter$hash_vars$cluster_genes_id_merged$V2[-1]
 n_genes <- unlist(lapply(strsplit(genes, ","), length))
@@ -107,7 +106,7 @@ end.rcode-->
     cat(plotter$prettify_div("<p> Ranking of the top 10 isolated DEGs that were filtered out in the network clustering process per dataset, showing the causal genes for the disease in the first column, followed by the score and normalized score calculated for each DEG based on their proximity to the respective causal gene (the closer to zero, the closer the causal gene is to the DEG). </p>", preset = "magic"))
     cat(plotter$prettify_div(plotter$table(list(id = "noncluster_ranked_top_genes_merged", header = TRUE, row_names = FALSE, styled = "dt", table_rownames = FALSE, text = "dynamic")), preset = "magic"))
     cat(plotter$create_title("Average gene prioritization", "all_top_ranked", hlevel = 2, indexable = TRUE, clickable = FALSE, t_id = NULL))
-    cat(plotter$prettify_div("<p> Ranking of the average proximity of each DEG to all of the causal genes (<i>DMD, C9ORF72, FUS and TNPO3</i>) showing the top 10 DEGs in the first column using their gene symbols for clarity, followed by the score and normalized score calculated for each one based on their proximity to all causal genes (the closer to zero, the closer the average proximity is to all causal genes). Rank refers to their position based on their proximity compared to the whole genome. The last 8 columns show the values of logFC and pvalue for each gene in each dataset, separated by a comma. NA: the gene did not pass the expression filter in that dataset. </p>", preset = "magic"))
+    cat(plotter$prettify_div("<p> Ranking of the average proximity of each DEG to all of the causal genes (<i>COL3A1, LMNA and COL1A1</i>) showing the top 10 DEGs in the first column using their gene symbols for clarity, followed by the score and normalized score calculated for each one based on their proximity to all causal genes (the closer to zero, the closer the average proximity is to all causal genes). Rank refers to their position based on their proximity compared to the whole genome. The last 5 columns show the values of logFC and pvalue for each gene in each dataset, separated by a comma. NA: the gene did not pass the expression filter in that dataset. </p>", preset = "magic"))
     cat(plotter$prettify_div(plotter$table(list(id="all_DEGs_ranked_top_genes", header = TRUE, row_names = FALSE, styled = "dt", table_rownames = FALSE, text = "dynamic")), preset = "magic"))
     cat(plotter$create_title("Genes per cluster", "genes_per_cluster", hlevel = 2, indexable = TRUE, clickable = FALSE, t_id = NULL))
     cat(plotter$prettify_div("<p> Cluster IDs, including the number of genes in each cluster and a list of their corresponding DEGs.  </p>", preset = "magic"))

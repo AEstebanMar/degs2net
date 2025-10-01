@@ -61,52 +61,72 @@ degree_normalization){
     fi
 }
 
+get_embedding){
+	source ~soft_bio_267/initializes/init_python
+	resources: -m '500gb' -t '1-00:00:00' -n 'cal'
+	export PYTHONHASHSEED=123456
+	?
+	netanalyzer --seed $PYTHONHASHSEED -i degree_normalization)/adjacency_matrix.npy -n degree_normalization)/adjacency_matrix_rowIds.lst \
+	-f bin -k "node2vec" -K embedding_coords --both_repre_formats -l 'genes' -u 'genes' \
+	--embedding_add_options "'window':10,'num_walks':10,'walk_length':100,'dimensions':128" --embedding_coords
+	netanalyzer -i degree_normalization)/adjacency_matrix.npy -n degree_normalization)/adjacency_matrix_rowIds.lst \
+	 -f bin -k "node2vec" -K kernel --both_repre_formats -z -l 'genes' -u 'genes' \
+	 --embedding_add_options "'window':10,'num_walks':10,'walk_length':100,'dimensions':128" 
+	retVal=$?
+    if [ $retVal -ne 0 ]; then
+        echo ERROR: Last command exited with code $retVal
+        exit $retVal
+    fi
+}
+
 get_cluster_embedding_[$datasets]){
 	source ~soft_bio_267/initializes/init_python
 	source ~soft_bio_267/initializes/init_degenes_hunter
-	source ~soft_bio_267/initializes/init_R45
+	echo (*) > tracker
 	resources: -m '500gb' -t '1-00:00:00' -n 'cal'
 	input_files=`awk -F '\t' '$1 == "(*)" {print $0}' $execution_parameters | cut -f 2 | tr "," "\n"`
 	rm DEG_merged_list
 	for input_file in ${input_files[@]}; do
 		grep -w 'PREVALENT_DEG' $input_file | cut -f 1 >> DEG_merged_list
 	done
-	DEG_list=`cat DEG_merged_list | tr '\n' ',' | sed 's/,$//'`
+	cat DEG_merged_list | sort -u | sed 's/$/\t(*)/g' > DEG_list_per_dataset
+	DEG_list=`cat DEG_merged_list | sort -u | tr '\n' ',' | sed 's/,$//'`
 	?
-	netanalyzer -i degree_normalization)/adjacency_matrix.npy -n degree_normalization)/adjacency_matrix_rowIds.lst \
-	 -f bin -k "node2vec" -K embedding_coords --both_repre_formats -l 'genes' -u 'genes' \
-	--embedding_add_options "'window':10,'num_walks':10,'walk_length':100,'dimensions':128" --embedding_coords --cluster_embedding "HDBSCAN" \
+	netanalyzer -i "NULL" --embedding_coords --external_embedding get_embedding)'/embedding_coords.npy',get_embedding)'/embedding_coords_rowIds.lst' --cluster_embedding "HDBSCAN" \
 	-r $DEG_list --cluster_embedding_add_options "'min_cluster_size': 2,'min_samples': 2" --output_build_clusters groups_from_embedding
-	text2binary_matrix -i embedding_coords.npy -t 'bin' -O 'bin' --coords2kernel "dotProduct" --normalize_by 'cosine' -o kernel
-	aggregate_column_data -i groups_from_embedding -x 1 -a 2 -s ',' > clusters_aggregated.txt
-	DEG_list_number=`cat DEG_merged_list | wc -l`
-	genes_out_network=`grep -f DEG_merged_list $db_path'/string_network_genes.txt' | wc -l`
-	int_miss_genes=`echo "$DEG_list_number - $genes_out_network" | bc`
-	nclusters=`cat clusters_aggregated.txt | wc -l`
-	echo -e "(*)\tint_miss_genes\t"$int_miss_genes >> $wf_execution/all_metrics
-	echo -e "(*)\tnclusters\t"$nclusters >> $wf_execution/all_metrics
-	genes_in_clusters=`cut -f 2 groups_from_embedding | wc -l`
-	echo -e "(*)\tgenes_in_clusters\t"$genes_in_clusters >> $wf_execution/all_metrics
-	intersect_columns -a DEG_merged_list -b $db_path'/string_network_genes.txt' -k a > unmapped_DEGs.txt
-	nunmapped_DEGs=`cat unmapped_DEGs.txt | wc -l`
-	echo -e "(*)\tnunmapped_DEGs\t"$nunmapped_DEGs >> $wf_execution/all_metrics
-	grep -f unmapped_DEGs.txt $db_path'/seq_type' > unmapped_gene_type
-	nunmapped_genes=`grep -cw gene unmapped_gene_type`
-	nunmapped_ncRNA=`grep -cw ncRNA_gene unmapped_gene_type`
-	grep -w 'ncRNA_gene' unmapped_gene_type | cut -f 2 > ncRNA_tmp
-	grep -f ncRNA_tmp $input_files | cut -f 1,2 > ncRNA
-	sed -i '1i ENSEMBL_CODE\tLogFC' ncRNA
-	add_annotation.R -i ncRNA -o ncRNA_annotated_tmp -I ENSEMBL
-	tail -n+2 ncRNA_annotated_tmp | sed 's/$/\t(*)/g' > ncRNA_annotated
-	nunmapped_pseudo=`grep -cw pseudogene unmapped_gene_type`
-	echo -e "(*)\tnunmapped_genes\t"$nunmapped_genes >> $wf_execution/all_metrics
-	echo -e "(*)\tnunmapped_ncRNA\t"$nunmapped_ncRNA >> $wf_execution/all_metrics
-	echo -e "(*)\tnunmapped_pseudo\t"$nunmapped_pseudo >> $wf_execution/all_metrics
-	sed '1i Cluster_id\tGene' groups_from_embedding > cluster_genes_tmp
-	add_annotation.R -i cluster_genes_tmp -o cluster_genes_annotated -c 2 -I ENSEMBL
-	aggregate_column_data -i cluster_genes_annotated -x 1 -a 3 -s ',' > cluster_genes_aggregated
-	tail -n+2 cluster_genes_aggregated | sed 's/$/\t(*)/g' > cluster_genes
-	rm ncRNA_annotated_tmp
+	if [ ! -s groups_from_embedding ];then
+		echo "No clusters were found"
+	else
+		aggregate_column_data -i groups_from_embedding -x 1 -a 2 -s ',' > clusters_aggregated.txt
+		DEG_list_number=`cat DEG_merged_list | wc -l`
+		genes_out_network=`grep -f DEG_merged_list $db_path'/string_network_genes.txt' | wc -l`
+		int_miss_genes=`echo "$DEG_list_number - $genes_out_network" | bc`
+		nclusters=`cat clusters_aggregated.txt | wc -l`
+		echo -e "(*)\tint_miss_genes\t"$int_miss_genes >> $wf_execution/all_metrics
+		echo -e "(*)\tnclusters\t"$nclusters >> $wf_execution/all_metrics
+		genes_in_clusters=`cut -f 2 groups_from_embedding | wc -l`
+		echo -e "(*)\tgenes_in_clusters\t"$genes_in_clusters >> $wf_execution/all_metrics
+		intersect_columns -a DEG_merged_list -b $db_path'/string_network_genes.txt' -k a > unmapped_DEGs.txt
+		nunmapped_DEGs=`cat unmapped_DEGs.txt | wc -l`
+		echo -e "(*)\tnunmapped_DEGs\t"$nunmapped_DEGs >> $wf_execution/all_metrics
+		grep -f unmapped_DEGs.txt $db_path'/seq_type' > unmapped_gene_type
+		nunmapped_genes=`grep -cw gene unmapped_gene_type`
+		nunmapped_ncRNA=`grep -cw ncRNA_gene unmapped_gene_type`
+		grep -w 'ncRNA_gene' unmapped_gene_type | cut -f 2 > ncRNA_tmp
+		grep -f ncRNA_tmp $input_files | cut -f 1,2 > ncRNA
+		sed -i '1i ENSEMBL_CODE\tLogFC' ncRNA
+		add_annotation.R -i ncRNA -o ncRNA_annotated_tmp -I ENSEMBL
+		tail -n+2 ncRNA_annotated_tmp | sed 's/$/\t(*)/g' > ncRNA_annotated
+		nunmapped_pseudo=`grep -cw pseudogene unmapped_gene_type`
+		echo -e "(*)\tnunmapped_genes\t"$nunmapped_genes >> $wf_execution/all_metrics
+		echo -e "(*)\tnunmapped_ncRNA\t"$nunmapped_ncRNA >> $wf_execution/all_metrics
+		echo -e "(*)\tnunmapped_pseudo\t"$nunmapped_pseudo >> $wf_execution/all_metrics
+		sed '1i Cluster_id\tGene' groups_from_embedding > cluster_genes_tmp
+		add_annotation.R -i cluster_genes_tmp -o cluster_genes_annotated -c 2 -I ENSEMBL
+		aggregate_column_data -i cluster_genes_annotated -x 1 -a 3 -s ',' > cluster_genes_aggregated
+		tail -n+2 cluster_genes_aggregated | sed 's/$/\t(*)/g' > cluster_genes
+		rm ncRNA_annotated_tmp
+	fi
 	retVal=$?
     if [ $retVal -ne 0 ]; then
         echo ERROR: Last command exited with code $retVal
@@ -120,14 +140,18 @@ cluster_prioritization_[$datasets]){
 	source ~soft_bio_267/initializes/init_degenes_hunter
 	echo (*) > tracker
 	target_genes=`awk -F '\t' '$1 == "(*)" {print $0}' $execution_parameters | cut -f 3`
-	cut -f 1 !get_cluster_embedding_*!/clusters_aggregated.txt | sed 's/$/\t'"$target_genes"'/' > ./disease_genes.txt
-	text2binary_matrix -i gather_expressed_genes)/nodes_network -t "pair" -O "bin" -o ./nodes_network_matrix
-	?
-	ranker -k !get_cluster_embedding_*!/kernel.npy -n !get_cluster_embedding_*!/embedding_coords_rowIds --adj_matrix ./nodes_network_matrix.npy \
-										--seed_nodes !get_cluster_embedding_*!/clusters_aggregated.txt \
-										-f disease_genes.txt --score2pvalue "logistic" --representation_seed_metric "fisher" 
-	sed '1i candidates\tscore\tnormalized_score\trank\tuniq_rank\tseed_group' ranked_genes_all_candidates
-	sed 's/$/\t(*)/g' ranked_genes_all_candidates > ranked_clusters
+	if [ ! -s !get_cluster_embedding_*!/clusters_aggregated.txt ]; then
+		echo "No clusters were found and thus, prioritization of clusters is not possible."
+	else
+		cut -f 1 !get_cluster_embedding_*!/clusters_aggregated.txt | sed 's/$/\t'"$target_genes"'/' > ./disease_genes.txt
+		text2binary_matrix -i gather_expressed_genes)/nodes_network -t "pair" -O "bin" -o ./nodes_network_matrix
+		?
+		ranker -k get_embedding)/kernel.npy -n get_embedding)/embedding_coords_rowIds.lst --adj_matrix ./nodes_network_matrix.npy \
+											--seed_nodes !get_cluster_embedding_*!/clusters_aggregated.txt \
+											-f disease_genes.txt --score2pvalue "logistic" --representation_seed_metric "fisher" 
+		sed '1i candidates\tscore\tnormalized_score\trank\tuniq_rank\tseed_group' ranked_genes_all_candidates
+		sed 's/$/\t(*)/g' ranked_genes_all_candidates > ranked_clusters
+	fi
 	retVal=$?
     if [ $retVal -ne 0 ]; then
         echo ERROR: Last command exited with code $retVal
@@ -139,7 +163,6 @@ non_cluster_prioritization_[$datasets]){
 	resources: -c 1 -t 0-00:59:59 -m '100gb' -n 'cal'
 	source ~soft_bio_267/initializes/init_python
 	source ~soft_bio_267/initializes/init_degenes_hunter
-	source ~soft_bio_267/initializes/init_R45
 	echo (*) > tracker
 	cut -f 2 !get_cluster_embedding_*!/groups_from_embedding > cluster_genes.txt
 	grep -vf !get_cluster_embedding_*!/unmapped_DEGs.txt !get_cluster_embedding_*!/DEG_merged_list > mapped_DEGs
@@ -147,7 +170,7 @@ non_cluster_prioritization_[$datasets]){
 	target_genes=`awk -F '\t' '$1 == "(*)" {print $0}' $execution_parameters | cut -f 3`
 	cut -f 1 genes_not_clustered.txt | sed 's/$/\t'"$target_genes"'/' > disease_genes.txt 
 	?
-	ranker -k !get_cluster_embedding_*!/kernel.npy -n !get_cluster_embedding_*!/embedding_coords_rowIds --adj_matrix !cluster_prioritization_*!/nodes_network_matrix.npy \
+	ranker -k get_embedding)/kernel.npy -n get_embedding)'/embedding_coords_rowIds.lst' --adj_matrix !cluster_prioritization_*!/nodes_network_matrix.npy \
 										--seed_nodes genes_not_clustered.txt \
 										-f disease_genes.txt --score2pvalue "logistic" --representation_seed_metric "fisher"
 	sort -k4 -g ranked_genes_all_candidates | head > top_genes_tmp
@@ -160,81 +183,6 @@ non_cluster_prioritization_[$datasets]){
     fi
 }
 
-# %get_embedding){
-# 	source ~soft_bio_267/initializes/init_python
-# 	resources: -m '500gb' -t '1-00:00:00' -n 'cal'
-# 	?
-# 	netanalyzer -i degree_normalization)/adjacency_matrix.npy -n degree_normalization)/adjacency_matrix_rowIds.lst \
-# 	 -f bin -k "node2vec" -K kernel --both_repre_formats -z -l 'genes' -u 'genes' \
-# 	 --embedding_add_options "'window':10,'num_walks':10,'walk_length':100,'dimensions':128" 
-# 	retVal=$?
-#     if [ $retVal -ne 0 ]; then
-#         echo ERROR: Last command exited with code $retVal
-#         exit $retVal
-#     fi
-# }
-
-# %subgraph_extraction_clustering_[$datasets]){
-# 	resources: -c 1 -t 0-00:59:59 -m '10gb'
-# 	source ~soft_bio_267/initializes/init_python
-# 	source ~soft_bio_267/initializes/init_degenes_hunter
-# 	echo (*) > tracker
-# 	input_files=`awk -F '\t' '$1 == "(*)" {print $0}' $execution_parameters | cut -f 2 | tr "," "\n"`
-# 	rm DEG_merged_list
-# 	for input_file in ${input_files[@]}; do
-# 		grep -w 'PREVALENT_DEG' $input_file | cut -f 1 >> DEG_merged_list
-# 	done
-# 	sort -u DEG_merged_list > DEG_list_tmp
-# 	sed -e 's/^/seed\t/' DEG_list_tmp > DEG_list
-# 	sed -e 's/$/\t(*)/' DEG_list_tmp > DEG_list_per_dataset
-# 	aggregate_column_data -i DEG_list_per_dataset -x 2 -a 1 -s , > DEG_list_per_dataset_agg
-# 	?
-# 	netanalyzer -i gather_expressed_genes)/nodes_network -f pair -o . -l genes -b louvain -G DEG_list \
-# 														 --seed 1 --output_build_clusters ./discovered_clusters_tmp.txt 2> log
-# 	int_miss_genes=`grep -c 'seed with member not in network' log`
-# 	cut -f 2,3 discovered_clusters_tmp.txt > discovered_clusters.txt
-# 	netanalyzer -i gather_expressed_genes)/nodes_network -G ./discovered_clusters.txt -M "size;internal_edge_density" \
-# 				--output_metrics_by_cluster ./metrics_clusters
-# 	awk 'BEGIN{FS=OFS="\t"}{if ($2 >= 3) print $0}' metrics_clusters > cluster_reduction
-# 	aggregate_column_data -i discovered_clusters_tmp.txt -x 2 -a 3 -s ',' > clusters_aggregated_tmp.txt
-# 	cut -f 1 cluster_reduction | tail -n+2 > cluster_reduction_ids
-# 	grep -wf cluster_reduction_ids clusters_aggregated_tmp.txt > clusters_aggregated.txt
-# 	clusters=`cat clusters_aggregated.txt | wc -l`
-# 	echo -e "(*)\tint_miss_genes\t"$int_miss_genes >> $wf_execution/all_metrics
-# 	echo -e "(*)\tnclusters\t"$nclusters >> $wf_execution/all_metrics
-# 	genes_in_clusters=`grep -wf cluster_reduction_ids discovered_clusters.txt | sort -u | cut -f 2 | wc -l`
-# 	echo -e "(*)\tgenes_in_clusters\t"$genes_in_clusters >> $wf_execution/all_metrics
-# 	intersect_columns -a DEG_list_tmp -b $db_path'/string_network_genes.txt' -k a > unmapped_DEGs.txt
-# 	unmapped_DEGs=`cat unmapped_DEGs.txt | wc -l`
-# 	echo -e "(*)\tnunmapped_DEGs\t"$nunmapped_DEGs >> $wf_execution/all_metrics
-# 	grep -f unmapped_DEGs.txt $db_path'/seq_type' > unmapped_gene_type
-# 	nunmapped_genes=`grep -cw gene unmapped_gene_type`
-# 	nunmapped_ncRNA=`grep -cw ncRNA_gene unmapped_gene_type`
-# 	grep -w 'ncRNA_gene' unmapped_gene_type | cut -f 2 > ncRNA_tmp
-# 	grep -f ncRNA_tmp $input_files | cut -f 1,2 > ncRNA
-# 	sed -i '1i ENSEMBL_CODE\tLogFC' ncRNA
-# 	add_annotation.R -i ncRNA -o ncRNA_annotated_tmp -I ENSEMBL
-# 	tail -n+2 ncRNA_annotated_tmp | sed 's/$/\t(*)/g' > ncRNA_annotated
-# 	rm ncRNA_annotated_tmp
-# 	nunmapped_pseudo=`grep -cw pseudogene unmapped_gene_type`
-# 	echo -e "(*)\tnunmapped_genes\t"$nunmapped_genes >> $wf_execution/all_metrics
-# 	echo -e "(*)\tnunmapped_ncRNA\t"$nunmapped_ncRNA >> $wf_execution/all_metrics
-# 	echo -e "(*)\tnunmapped_pseudo\t"$nunmapped_pseudo >> $wf_execution/all_metrics
-# 	grep -wf cluster_reduction_ids discovered_clusters.txt > selected_cluster_genes_tmp
-# 	sed -i '1i Cluster_id\tGene' selected_cluster_genes_tmp
-# 	add_annotation.R -i selected_cluster_genes_tmp -o selected_cluster_genes_annotated -c 2 -I ENSEMBL
-# 	aggregate_column_data -i selected_cluster_genes_annotated -x 1 -a 3 -s ',' > selected_cluster_genes_aggregated
-# 	tail -n+2 selected_cluster_genes_aggregated | sed 's/$/\t(*)/g' > selected_cluster_genes
-# 	retVal=$?
-#     if [ $retVal -ne 0 ]; then
-#         echo ERROR: Last command exited with code $retVal
-#         exit $retVal
-#     fi
-# }
-
-
-
-
 all_datasets_prioritization){
 	resources: -c 1 -t 0-00:59:59 -m '100gb' -n 'cal'
 	source ~soft_bio_267/initializes/init_python
@@ -245,10 +193,10 @@ all_datasets_prioritization){
 		grep -w 'PREVALENT_DEG' $input_file | cut -f 1 >> DEG_merged_list
 	done
 	sort -u DEG_merged_list | tr '\n' ',' | sed 's/,$//' | sed 's/^/seed_causal\t/'  > DEG_list
-	cat !subgraph_extraction_clustering_!/DEG_list_per_dataset > DEGs_per_dataset
+	cat !get_cluster_embedding_!/DEG_list_per_dataset > DEGs_per_dataset
 	cut -f 3 $execution_parameters | sort -u | tr '\n' ',' | sed 's/,$//' | sed 's/^/seed_causal\t/' > seed_genes
 	?
-	ranker -k get_embedding)/kernel.npy -n get_embedding)/kernel_rowIds --adj_matrix !cluster_prioritization_*!/nodes_network_matrix.npy \
+	ranker -k get_embedding)/kernel.npy -n get_embedding)/kernel_rowIds.lst --adj_matrix !cluster_prioritization_*!/nodes_network_matrix.npy \
 										--seed_nodes seed_genes \
 										-f DEG_list --score2pvalue "logistic" --representation_seed_metric "fisher"	
 	sort -k4 -g ranked_genes_all_candidates | head -n 10 > top_genes_tmp
@@ -280,11 +228,10 @@ all_datasets_prioritization){
 }
 
 
-ABCC6_prioritization){
+ABCC6_prioritization){ 
 	resources: -c 1 -t 0-00:59:59 -m '100gb' -n 'cal'
 	source ~soft_bio_267/initializes/init_python
 	source ~soft_bio_267/initializes/init_degenes_hunter
-
 	echo 'ENSG00000091262' | sed 's/^/seed_causal\t/' > seed_ABCC6
 	input_files=`cut -f 2 $execution_parameters`	
 	rm DEG_merged_list
@@ -295,7 +242,7 @@ ABCC6_prioritization){
 	cut -f 3 $execution_parameters | sort -u | tr '\n' ',' | sed 's/,$//' > causal_genes
 	cat DEG_list causal_genes | sed 's/^/seed_causal\t/' > filtered_genes
 	?
-	ranker -k get_embedding)/kernel.npy -n get_embedding)/kernel_rowIds --adj_matrix !cluster_prioritization_*!/nodes_network_matrix.npy \
+	ranker -k get_embedding)/kernel.npy -n get_embedding)/kernel_rowIds.lst --adj_matrix !cluster_prioritization_*!/nodes_network_matrix.npy \
 										--seed_nodes seed_ABCC6 \
 										-f filtered_genes --score2pvalue "logistic" --representation_seed_metric "fisher"	
 	sort -k4 -g ranked_genes_all_candidates | head -n 10 > top_genes_tmp
@@ -311,7 +258,13 @@ ABCC6_prioritization){
         for line in `cat top_genes_ENS`
         do
                 path=`grep $dataset input_files`
-                grep -w $line $path | awk ' {print $1, $2, $4}' | sed 's/$/\t'$dataset'/' | awk  '{print $1, $4, $2","$3}' | tr ' ' '\t' >> gene_values
+                grep -w $line $path > gene_value
+                if [ ! -s gene_value ];then
+                	echo -e $line'\t'$dataset'\tNA,NA' >> gene_values 
+                else
+                	awk ' {print $1, $2, $4}' gene_value | sed 's/$/\t'$dataset'/' | awk  '{print $1, $4, $2","$3}' | tr ' ' '\t' >> gene_values
+                fi
+
         done
 	done
 	create_metric_table gene_values ENSEMBL_GENE final_table_tmp
@@ -336,39 +289,8 @@ network_representation_[$datasets]){
 	sed -i '1s/^/seed\tENSEMBL_gene\n/' target_genes 
 	add_annotation.R -i target_genes -o target_genes_tmp -c 2 -I ENSEMBL
 	cut -f 1,3 target_genes_tmp | tail -n+2  > target_genes
-	grep -wf !subgraph_extraction_clustering_*!/cluster_reduction_ids !subgraph_extraction_clustering_*!/discovered_clusters.txt | sed '1i Cluster_id\tENSEMBL_gene' > group_nodes
+	sed '1i Cluster_id\tENSEMBL_gene' !get_cluster_embedding_*!/groups_from_embedding > group_nodes
 	add_annotation.R -i group_nodes -o group_nodes_tmp -c 2 -I ENSEMBL
-	cut -f 1,3 group_nodes_tmp | tail -n+2  > group_nodes
-	cut -f 2 group_nodes | sed 's/^/(*)\t/' > group_nodes_dataset
-	rm group_nodes_tmp 
-	export PYTHONHASHSEED=123456
-	LAYERS='gene,[A-Za-z0-9]'
-	?
-	net_explorer --seed $PYTHONHASHSEED -i "string,gather_expressed_genes)/nodes_network_annotated" --seed_nodes target_genes \
-	-N -T 1 --graph_options 'method=sigma2,width=1200px,height=900px,iterations=200,style=safe' --embedding_proj "umap" -G group_nodes -g network_umap_SAFE &>nt_umap_log_SAFE & 
-	net_explorer --seed $PYTHONHASHSEED -i "string,gather_expressed_genes)/nodes_network_annotated" --seed_nodes target_genes \
-	-N -T 1 --graph_options 'method=sigma2,width=1200px,height=900px,iterations=200' --embedding_proj "umap" -G group_nodes -g network_umap &>nt_umap_log & 
-	wait
-	retVal=$?
-    if [ $retVal -ne 0 ]; then
-        echo ERROR: Last command exited with code $retVal
-        exit $retVal
-    fi
-}
-
-
-network_emb_coords_representation_[$datasets]){
-	resources: -c 32 -t 7-00:00:00 -m '182gb' -n 'cal'
-	source ~soft_bio_267/initializes/init_python
-	source ~soft_bio_267/initializes/init_degenes_hunter
-	echo (*) > tracker
-	awk -F '\t' '$1 == "(*)" {print $0}' $execution_parameters | cut -f 3 > target_genes
-	sed -i -e 's/^/seed\t/' target_genes
-	sed -i '1s/^/seed\tENSEMBL_gene\n/' target_genes 
-	add_annotation.R -i target_genes -o target_genes_tmp -c 2 -I ENSEMBL
-	cut -f 1,3 target_genes_tmp | tail -n+2  > target_genes
-	sed '1i Cluster_id\tENSEMBL_gene' !get_cluster_embedding_*!/groups_from_embedding > groups_from_embedding
-	add_annotation.R -i groups_from_embedding -o group_nodes_tmp -c 2 -I ENSEMBL
 	cut -f 1,3 group_nodes_tmp | tail -n+2  > group_nodes
 	cut -f 2 group_nodes | sed 's/^/(*)\t/' > group_nodes_dataset
 	rm group_nodes_tmp 
@@ -391,7 +313,6 @@ whole_network_representation){
 	resources: -c 32 -t 7-00:00:00 -m '182gb' -n 'cal'
 	source ~soft_bio_267/initializes/init_python
 	source ~soft_bio_267/initializes/init_degenes_hunter
-	source ~soft_bio_267/initializes/init_R45
 	cut -f 3 $execution_parameters | sort -u | sed 's/^/seed\t/' > disease_genes_tmp
 	sed -i '1s/^/seed\tENSEMBL_gene\n/' disease_genes_tmp
 	add_annotation.R -i disease_genes_tmp -o disease_genes -c 2 -I ENSEMBL
@@ -447,22 +368,12 @@ functional_analysis_[$datasets]){
 	resources: -c 16 -t 0-00:59:59 -m '60gb' -n 'cal'
 	echo (*) > tracker
 	source ~soft_bio_267/initializes/init_degenes_hunter
+	if [ ! -s !get_cluster_embedding_*!/clusters_aggregated.txt ];then
+		echo "No clusters were found. Stopping functional analysis."
+	else
 	?
-	clusters_to_enrichment.R -i !subgraph_extraction_clustering_*!/clusters_aggregated.txt -w [cpu] -o functional_results -f MF,BP,CC -p $pvalue_cutoff -k ENSEMBL -O "Human"
-	retVal=$?
-    if [ $retVal -ne 0 ]; then
-        echo ERROR: Last command exited with code $retVal
-        exit $retVal
-    fi
-}
-
-functional_emb_coords_analysis_[$datasets]){
-	resources: -c 16 -t 0-00:59:59 -m '60gb' -n 'cal'
-	echo (*) > tracker
-	source ~soft_bio_267/initializes/init_degenes_hunter
-	source ~soft_bio_267/initializes/init_R45
-	?
-	clusters_to_enrichment.R -i !get_cluster_embedding_*!/groups_aggregated.txt -w [cpu] -o functional_results -f MF,BP,CC -p $pvalue_cutoff -k ENSEMBL -O "Human"
+	clusters_to_enrichment.R -i !get_cluster_embedding_*!/clusters_aggregated.txt -w [cpu] -o functional_results -f MF,BP,CC -p $pvalue_cutoff -k ENSEMBL -O "Human"
+	fi
 	retVal=$?
     if [ $retVal -ne 0 ]; then
         echo ERROR: Last command exited with code $retVal
