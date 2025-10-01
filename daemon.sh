@@ -56,7 +56,7 @@ if [ "$module" == "1" ]; then
     	\\$db_path=$db_path,
     	\\$pvalue_cutoff=$pvalue_cutoff,
     	\\$results_folder=$results_folder,
-    	\\$wf_execution=$wf_execution
+    	\\$wf_execution=$wf_execution	
     " | tr -d '[:space:]' `
     
     if [ "$mode" == "exec" ] ; then
@@ -66,7 +66,7 @@ if [ "$module" == "1" ]; then
 		flow_logger -w -e $wf_execution -r all
 	elif [ "$mode" == "rescue" ] ; then
 		echo Regenerating code
-		AutoFlow -w $template -V $variables $aux_opt -o $wf_execution -v
+		AutoFlow -w $current_dir/templates/degs2net.af -V $variables $aux_opt -o $wf_execution -v
 		echo Launching pending and failed jobs
 		flow_logger -w -e $wf_execution -l -p -b
 	fi
