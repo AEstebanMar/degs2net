@@ -85,12 +85,14 @@ if [ "$module" == "3" ]; then
 	create_metric_table $wf_execution/all_metrics dataset $results_folder/all_metrics_table -c $results_folder/corrupted_metrics_data
 	rm $results_folder/all_rankings 
 	for dataset in $datasets; do
-		ranked_file=$results_folder"/integrated/"$dataset"/ranked_genes_all_candidates"
-		awk -v dataset=$dataset '{print dataset "\t" $0}' $ranked_file >> $results_folder/all_rankings
+		if [ -s $results_folder"/integrated/"$dataset"/ranked_genes_all_candidates" ]; then
+			ranked_file=$results_folder"/integrated/"$dataset"/ranked_genes_all_candidates"
+			awk -v dataset=$dataset '{print dataset "\t" $0}' $ranked_file >> $results_folder/all_rankings
+		fi
 		sample_metrics=$results_folder"/datasets/"$dataset"/metric_table"
 
 	done
-	cat $wf_execution/netanalyzer_000*/DEG_list_tmp | sort -u > $results_folder/all_DEGs
+	cat $wf_execution/netanalyzer_000*/DEG_merged_list | sort -u > $results_folder/all_DEGs
 	grep -f $results_folder/all_DEGs $db_path'/string_network.txt' | awk '{print $1"-"$2"\t"$3}'> $results_folder/mapped_interactions
 	echo "$single_end_libraries" > single_end_libraries
 	echo "$results_folder/datasets/*/files/metric_table_*"
