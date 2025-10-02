@@ -1,4 +1,5 @@
 <!--begin.rcode Setup
+saveRDS(plotter, "plotter.rds")
 plotter$hash_vars$scores_abundance <- data.frame(table(plotter$hash_vars$mapped_interactions[,2]))
 genes <- plotter$hash_vars$cluster_genes_id_merged$V2[-1]
 n_genes <- unlist(lapply(strsplit(genes, ","), length))
@@ -22,8 +23,16 @@ plotter$hash_vars$clusters_boxplot <- do.call(rbind, clusters_boxplot)
 single_end_libraries <- plotter$hash_vars$single_end_libraries[[1]]
 single_end_libraries <- strsplit(single_end_libraries, ";")[[1]]
 
+exec_parameters <- plotter$hash_vars$execution_parameters
+dataset_ids <- exec_parameters[ , 1, drop = FALSE]
+dataset_ids <- paste0("metric_table_", dataset_ids$V1)
+
 fixed_metric_tables <- list()
 for(ID in paste0("metric_table_", single_end_libraries)) {
+    if(is.null(plotter$hash_vars[[ID]])) {
+        dataset_ids <- dataset_ids[!grepl(ID, dataset_ids)]
+        next
+    }
     metric_table <- plotter$hash_vars[[ID]]
     colnames(metric_table) <- metric_table[1, , drop = FALSE]
     metric_table <- metric_table[-1, , drop = FALSE]
@@ -35,9 +44,6 @@ for(ID in paste0("metric_table_", single_end_libraries)) {
     colnames(metric_table) <- paste0("V", 1:ncol(metric_table))
     plotter$hash_vars[[ID]] <- metric_table
 }
-exec_parameters <- plotter$hash_vars$execution_parameters
-dataset_ids <- exec_parameters[ , 1, drop = FALSE]
-dataset_ids <- paste0("metric_table_", dataset_ids[, 1])
 
 plotter$merge_hashed_tables(dataset_ids, from_id_name = "dataset", target_id = "merged_dataset_metrics", add_colnames = TRUE)
 plotter$hash_vars$merged_dataset_metrics$dataset <- gsub("metric_table_", "", plotter$hash_vars$merged_dataset_metrics$dataset)
