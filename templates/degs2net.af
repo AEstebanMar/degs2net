@@ -91,42 +91,48 @@ get_cluster_embedding_[$datasets]){
 	done
 	cat DEG_merged_list | sort -u | sed 's/$/\t(*)/g' > DEG_list_per_dataset
 	DEG_list=`cat DEG_merged_list | sort -u | tr '\n' ',' | sed 's/,$//'`
-	?
-	netanalyzer -i "NULL" --embedding_coords --external_embedding get_embedding)'/embedding_coords.npy',get_embedding)'/embedding_coords_rowIds.lst' --cluster_embedding "HDBSCAN" \
-	-r $DEG_list --cluster_embedding_add_options "'min_cluster_size': 2,'min_samples': 2" --output_build_clusters groups_from_embedding
-	if [ ! -s groups_from_embedding ];then
-		echo "No clusters were found"
+	DEG_list_number=`cat DEG_merged_list | wc -l`
+	genes_out_network=`grep -f DEG_merged_list $db_path'/string_network_genes.txt' | wc -l`
+	int_miss_genes=`echo "$DEG_list_number - $genes_out_network" | bc`
+	intersect_columns -a DEG_merged_list -b $db_path'/string_network_genes.txt' -k a > unmapped_DEGs.txt
+	nunmapped_DEGs=`cat unmapped_DEGs.txt | wc -l`
+	grep -f unmapped_DEGs.txt $db_path'/seq_type' > unmapped_gene_type
+	nunmapped_genes=`grep -cw gene unmapped_gene_type`
+	nunmapped_ncRNA=`grep -cw ncRNA_gene unmapped_gene_type`
+	grep -w 'ncRNA_gene' unmapped_gene_type | cut -f 2 > ncRNA_tmp
+	if [ ! -s ncRNA_tmp ];then
+		echo "There are no ncRNA."
 	else
-		aggregate_column_data -i groups_from_embedding -x 1 -a 2 -s ',' > clusters_aggregated.txt
-		DEG_list_number=`cat DEG_merged_list | wc -l`
-		genes_out_network=`grep -f DEG_merged_list $db_path'/string_network_genes.txt' | wc -l`
-		int_miss_genes=`echo "$DEG_list_number - $genes_out_network" | bc`
-		nclusters=`cat clusters_aggregated.txt | wc -l`
-		echo -e "(*)\tint_miss_genes\t"$int_miss_genes >> $wf_execution/all_metrics
-		echo -e "(*)\tnclusters\t"$nclusters >> $wf_execution/all_metrics
-		genes_in_clusters=`cut -f 2 groups_from_embedding | wc -l`
-		echo -e "(*)\tgenes_in_clusters\t"$genes_in_clusters >> $wf_execution/all_metrics
-		intersect_columns -a DEG_merged_list -b $db_path'/string_network_genes.txt' -k a > unmapped_DEGs.txt
-		nunmapped_DEGs=`cat unmapped_DEGs.txt | wc -l`
-		echo -e "(*)\tnunmapped_DEGs\t"$nunmapped_DEGs >> $wf_execution/all_metrics
-		grep -f unmapped_DEGs.txt $db_path'/seq_type' > unmapped_gene_type
-		nunmapped_genes=`grep -cw gene unmapped_gene_type`
-		nunmapped_ncRNA=`grep -cw ncRNA_gene unmapped_gene_type`
-		grep -w 'ncRNA_gene' unmapped_gene_type | cut -f 2 > ncRNA_tmp
 		grep -f ncRNA_tmp $input_files | cut -f 1,2 > ncRNA
 		sed -i '1i ENSEMBL_CODE\tLogFC' ncRNA
 		add_annotation.R -i ncRNA -o ncRNA_annotated_tmp -I ENSEMBL
 		tail -n+2 ncRNA_annotated_tmp | sed 's/$/\t(*)/g' > ncRNA_annotated
-		nunmapped_pseudo=`grep -cw pseudogene unmapped_gene_type`
-		echo -e "(*)\tnunmapped_genes\t"$nunmapped_genes >> $wf_execution/all_metrics
-		echo -e "(*)\tnunmapped_ncRNA\t"$nunmapped_ncRNA >> $wf_execution/all_metrics
-		echo -e "(*)\tnunmapped_pseudo\t"$nunmapped_pseudo >> $wf_execution/all_metrics
+		rm ncRNA_annotated_tmp
+	fi
+	nunmapped_pseudo=`grep -cw pseudogene unmapped_gene_type`
+	?
+	netanalyzer -i "NULL" --embedding_coords --external_embedding get_embedding)'/embedding_coords.npy',get_embedding)'/embedding_coords_rowIds.lst' --cluster_embedding "HDBSCAN" \
+	-r $DEG_list --cluster_embedding_add_options "'min_cluster_size': 2,'min_samples': 2" --output_build_clusters groups_from_embedding
+	if [ ! -s groups_from_embedding ];then
+		nclusters=0
+		genes_in_clusters=0
+		echo "No clusters were found"
+	else
+		aggregate_column_data -i groups_from_embedding -x 1 -a 2 -s ',' > clusters_aggregated.txt
+		nclusters=`cat clusters_aggregated.txt | wc -l`
+		genes_in_clusters=`cut -f 2 groups_from_embedding | wc -l`
 		sed '1i Cluster_id\tGene' groups_from_embedding > cluster_genes_tmp
 		add_annotation.R -i cluster_genes_tmp -o cluster_genes_annotated -c 2 -I ENSEMBL
 		aggregate_column_data -i cluster_genes_annotated -x 1 -a 3 -s ',' > cluster_genes_aggregated
 		tail -n+2 cluster_genes_aggregated | sed 's/$/\t(*)/g' > cluster_genes
-		rm ncRNA_annotated_tmp
 	fi
+	echo -e "(*)\tint_miss_genes\t"$int_miss_genes >> $wf_execution/all_metrics
+	echo -e "(*)\tnunmapped_DEGs\t"$nunmapped_DEGs >> $wf_execution/all_metrics
+	echo -e "(*)\tnunmapped_genes\t"$nunmapped_genes >> $wf_execution/all_metrics
+	echo -e "(*)\tnunmapped_ncRNA\t"$nunmapped_ncRNA >> $wf_execution/all_metrics
+	echo -e "(*)\tnunmapped_pseudo\t"$nunmapped_pseudo >> $wf_execution/all_metrics
+	echo -e "(*)\tnclusters\t"$nclusters >> $wf_execution/all_metrics
+	echo -e "(*)\tgenes_in_clusters\t"$genes_in_clusters >> $wf_execution/all_metrics
 	retVal=$?
     if [ $retVal -ne 0 ]; then
         echo ERROR: Last command exited with code $retVal
