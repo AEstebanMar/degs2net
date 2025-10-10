@@ -10,7 +10,7 @@ mkdir -p $results_folder/integrated $results_folder/datasets
 echo -e "ENSEMBL_CODE\tLogFC\tGENE_SYMBOL\tDATASET" > $results_folder/datasets/ncRNA_annotated_merged
 echo -e "ENSEMBL_CODE\tLogFC\tGENE_SYMBOL\tDATASET" > $results_folder/datasets/top_genes_merged
 echo -e "CAUSAL_GENE\tSCORE\tNORMALIZED_SCORE\tRANK\tUNIQ_RANK\tSEED_GROUP\tDATASET" > $results_folder/datasets/ranked_clusters_merged
-echo -e "CAUSAL_GENE\tSCORE\tNORMALIZED_SCORE\tRANK\tUNIQ_RANK\tSEED_GROUP\tGENE_SYMBOL\tDATASET" > $results_folder/datasets/noncluster_ranked_top_genes_merged
+echo -e "CAUSAL_GENE\tSCORE\tNORMALIZED_SCORE\tRANK\tUNIQ_RANK\tGENE\tGENE_SYMBOL\tDATASET" > $results_folder/datasets/noncluster_ranked_top_genes_merged
 echo -e "CLUSTER_ID\tGENE_SYMBOLS\tDATASET" > $results_folder/datasets/cluster_genes_id_merged
 
 for folder in `ls $execution_folder | grep -v _file`
@@ -62,6 +62,14 @@ do
 	    then
 	    	cp $execution_folder"/"$folder/network_all.html $results_folder/integrated
 	    fi	
+	   	if [ -s $execution_folder"/"$folder/"ABCC6_ranked_clusters" ]
+	    then
+	    	cp $execution_folder"/"$folder/ABCC6_ranked_clusters $results_folder/integrated
+	    fi
+	   	if [ -s $execution_folder"/"$folder/"ABCC6_representation_SAFE.html" ]
+	    then
+	    	cp $execution_folder"/"$folder/ABCC6_representation_SAFE.html $results_folder/integrated
+	    fi	    
 done
 
 for dataset in $dataset_names
