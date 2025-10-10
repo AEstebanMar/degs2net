@@ -140,6 +140,18 @@ get_cluster_embedding_[$datasets]){
     fi
 }
 
+general_clustering){
+	resources: -c 1 -t 0-00:59:59 -m '100gb' -n 'cal'
+	source ~soft_bio_267/initializes/init_python
+	source ~soft_bio_267/initializes/init_degenes_hunter
+	rm DEG_list
+	cat !get_cluster_embedding_!/DEG_merged_list >> DEG_list
+	?
+	netanalyzer -i "NULL" --embedding_coords --external_embedding get_embedding)'/embedding_coords.npy',get_embedding)'/embedding_coords_rowIds.lst' --cluster_embedding "HDBSCAN" \
+	-r DEG_list --cluster_embedding_add_options "'min_cluster_size': 2,'min_samples': 2" --output_build_clusters groups_from_embedding
+	aggregate_column_data -i groups_from_embedding -x 1 -a 2 -s ',' > clusters_aggregated.txt
+}
+
 cluster_prioritization_[$datasets]){
 	resources: -c 1 -t 0-00:59:59 -m '100gb'
 	source ~soft_bio_267/initializes/init_python
@@ -155,14 +167,36 @@ cluster_prioritization_[$datasets]){
 		ranker -k get_embedding)/kernel.npy -n get_embedding)/embedding_coords_rowIds.lst --adj_matrix ./nodes_network_matrix.npy \
 											--seed_nodes !get_cluster_embedding_*!/clusters_aggregated.txt \
 											-f disease_genes.txt --score2pvalue "logistic" --representation_seed_metric "fisher" 
-		sed '1i candidates\tscore\tnormalized_score\trank\tuniq_rank\tseed_group' ranked_genes_all_candidates
-		sed 's/$/\t(*)/g' ranked_genes_all_candidates > ranked_clusters
+		sed -i '1i candidates\tscore\tnormalized_score\trank\tuniq_rank\tseed_group' ranked_genes_all_candidates
+		add_annotation.R -i ranked_genes_all_candidates -o ranked_genes_all_candidates_annotated -c 1 -I ENSEMBL
+		awk  'BEGIN{FS="\t"; OFS=FS}{print $7,$2,$3,$4,$5,$6}' ranked_genes_all_candidates_annotated | tail -n+2 | sed 's/$/\t(*)/g' > ranked_clusters
 	fi
 	retVal=$?
     if [ $retVal -ne 0 ]; then
         echo ERROR: Last command exited with code $retVal
         exit $retVal
     fi
+}
+
+cluster_ABCC6_prioritization){
+	resources: -c 1 -t 0-00:59:59 -m '100gb'
+	source ~soft_bio_267/initializes/init_python
+	source ~soft_bio_267/initializes/init_degenes_hunter
+	target_gene=`echo 'ENSG00000091262'`
+	cut -f 1 general_clustering)'/clusters_aggregated.txt' | sed 's/$/\t'"$target_gene"'/' > ./disease_genes.txt
+	text2binary_matrix -i gather_expressed_genes)/nodes_network -t "pair" -O "bin" -o ./nodes_network_matrix
+	?
+	ranker -k get_embedding)/kernel.npy -n get_embedding)/embedding_coords_rowIds.lst --adj_matrix ./nodes_network_matrix.npy \
+										--seed_nodes general_clustering)'/clusters_aggregated.txt' \
+										-f disease_genes.txt --score2pvalue "logistic" --representation_seed_metric "fisher" 
+	sed -i '1i candidates\tscore\tnormalized_score\trank\tuniq_rank\tseed_group' ranked_genes_all_candidates
+	add_annotation.R -i ranked_genes_all_candidates -o ranked_genes_all_candidates_annotated -c 1 -I ENSEMBL
+	awk  'BEGIN{FS="\t"; OFS=FS}{print $7,$2,$3,$4,$5,$6}' ranked_genes_all_candidates_annotated | tr '[:lower:]' '[:upper:]' | sed 's/SYMBOL/CAUSAL_GENE/' > ABCC6_ranked_clusters
+	retVal=$?
+    if [ $retVal -ne 0 ]; then
+        echo ERROR: Last command exited with code $retVal
+        exit $retVal
+    fi	
 }
 
 non_cluster_prioritization_[$datasets]){
@@ -181,8 +215,10 @@ non_cluster_prioritization_[$datasets]){
 										-f disease_genes.txt --score2pvalue "logistic" --representation_seed_metric "fisher"
 	sort -k4 -g ranked_genes_all_candidates | head > top_genes_tmp
 	sed -i '1i candidates\tscore\tnormalized_score\trank\tuniq_rank\tgene' top_genes_tmp
-	add_annotation.R -i top_genes_tmp -o top_genes_annotated -c 6 -I ENSEMBL
-	tail -n+2 top_genes_annotated | sed 's/$/\t(*)/g' > noncluster_ranked_top_genes
+	add_annotation.R -i top_genes_tmp -o top_genes_annotated_tmp -c 6 -I ENSEMBL
+	sed -i 's/SYMBOL/gene_symbol/' top_genes_annotated_tmp
+	add_annotation.R -i top_genes_annotated_tmp -o top_genes_annotated -c 1 -I ENSEMBL 
+	tail -n+2 top_genes_annotated | awk  'BEGIN{FS="\t"; OFS=FS} {print $8,$2,$3,$4,$5,$6,$7}'  | sed 's/$/\t(*)/g' > noncluster_ranked_top_genes
     if [ $retVal -ne 0 ]; then
         echo ERROR: Last command exited with code $retVal
         exit $retVal
@@ -285,6 +321,7 @@ ABCC6_prioritization){
     fi	
 }
 
+
 network_representation_[$datasets]){
 	resources: -c 32 -t 7-00:00:00 -m '182gb' -n 'cal'
 	source ~soft_bio_267/initializes/init_python
@@ -369,6 +406,30 @@ ABCC6_network_representation){
         exit $retVal
     fi
 	}
+
+
+ABCC6_general_representation){
+	resources: -c 32 -t 7-00:00:00 -m '182gb' -n 'cal'
+	source ~soft_bio_267/initializes/init_python
+	source ~soft_bio_267/initializes/init_degenes_hunter
+	target_gene=`echo "ABCC6"`
+	cat general_clustering)'/groups_from_embedding' | sed '1s/^/cluster_id\tENSEMBL_gene\n/' > cluster_genes_tmp
+	add_annotation.R -i cluster_genes_tmp -o cluster_genes_annotated -c 2 -I ENSEMBL
+	cut -f 1,3 cluster_genes_annotated | tail -n+2 > cluster_genes
+	export PYTHONHASHSEED=123456
+	LAYERS='gene,[A-Za-z0-9]'
+	?
+	netanalyzer -i gather_expressed_genes)"/nodes_network_annotated" -l $LAYERS -g ABCC6_representation_SAFE \
+	--graph_options 'method=sigma2,width=1200px,height=900px,iterations=200,style=safe' -G cluster_genes -r $target_gene &>network_log_SAFE &
+	netanalyzer -i gather_expressed_genes)"/nodes_network_annotated" -l $LAYERS -g ABCC6_representation \
+	--graph_options 'method=sigma2,width=1200px,height=900px,iterations=200' -G cluster_genes -r $target_gene &>network_log &
+	wait
+    if [ $retVal -ne 0 ]; then
+        echo ERROR: Last command exited with code $retVal
+        exit $retVal
+    fi
+}
+
 
 functional_analysis_[$datasets]){
 	resources: -c 16 -t 0-00:59:59 -m '60gb' -n 'cal'
