@@ -29,6 +29,10 @@ do
 		then
 			cp $execution_folder"/"$folder/network_umap.html $out_integrated
 		fi
+		if [ -s $execution_folder"/"$folder/"network_umap_SAFE.html" ]
+		then
+			cp $execution_folder"/"$folder/network_umap_SAFE.html $out_integrated
+		fi
 		if [ -s $execution_folder"/"$folder/functional_results/clusters_func_report.html ]
 		then
 			cp $execution_folder"/"$folder/functional_results/clusters_func_report.html $out_integrated
